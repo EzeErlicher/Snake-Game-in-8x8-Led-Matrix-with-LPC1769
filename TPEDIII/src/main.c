@@ -24,13 +24,15 @@ void configI2C();        // Comunicación con Matriz Led
 void configEUART();      // Envio de estadisticas
 
 
-/*  Chequea si el proximo movimiento newPos de la vibora contra tres factores:
+/*  Chequea si el proximo movimiento newPos de la vibora contra cuatro situaciones:
     - Fuera de los limites -> GameOver: Sonido + StopTotal + Enviar stats
     - Choque contra si misma -> GameOver
     - Choque con la manzana -> moveSnake + WIN: Sonido + newApple + updateLength
     - Espacio libre -> moveSnake
+    ---
+       Return: -1 = Game Over // 0 = moveSnake
 */
-void checkCollisions(Point newPos);
+uint8_t checkCollisions(Point newPos);
 
 /*  Cuando el pulsador envia su dirección correspondiente, chequea si es valido
     y si es así actualiza la dirección actual de la vibora
@@ -38,7 +40,7 @@ void checkCollisions(Point newPos);
 void updateMovimiento(Direction new, Direction avoid);
 
 /*  Genera posición random para nueva manzana
-    - Chequear si la posición está ocupada por la vibora
+    - Chequea si la posición está ocupada por la vibora
     - Update de la posición al elemento "apple"
 */
 void newApple(); 
@@ -49,17 +51,76 @@ void moveSnake();
 //Chequea y envía los leds a encender a la matriz via I2P
 void render();
 
+/*  Lee el valor de conversión del ADC y asigna uno de los tres niveles de velocidad 
+    de juego seteando el timer principal acordemente
+*/
+void setDifficulty(uint16_t value);
+
 //Se encarga de enviar las estadisticas de la partida a la PC
 void sendStats();
 
-//Crea una vibora con dos leds de largo
+//Inicializa la vibora con tres leds de largo y su dirección + una manzana inicial
 void initGame();
 
 
 int main() {
-    
+    initGame();
+    //El juego no debería comenzar hasta que el jugador apriete uno de los pulsadores
 
     while (1) {}
 
     return 0;
 }
+
+void initGame(){
+    // Inicializa la longitud de la vibora y su dirección
+    snakeLength = 3;
+    direction = DER;
+
+    // Inicializa la posición de la vibora
+    snake[0].x = 0; snake[0].y = 4;
+    snake[1].x = 0; snake[1].y = 5;
+    snake[2].x = 0; snake[2].y = 6;
+
+    apple.x=4;
+    apple.y=6;
+}
+
+void moveSnake(){   //INCOMPLETO
+    Point newPos = snake[0];
+    if(direction==ARRIBA){
+        newPos.y++;
+    } else if(direction==ABAJO){
+        newPos.y--;
+    } else if(direction==DER){
+        newPos.x++;
+    } else{
+        newPos.x--;
+    }
+    if(!checkCollisions(newPos)){ //Es un movimiento válido
+        //Implementar update al arreglo de posiciones de la vibora
+    }
+}
+
+uint8_t checkCollisions(Point newPos){
+    //Caso 1: Fuera de los limites
+    if(newPos.x>=8 || newPos.x<0 || newPos.y>=8 || newPos.y<0){
+        return -1;
+    }
+    //Caso 2: Choque consigo misma
+    for (int i = 0; i < snakeLength; i++){
+        if(newPos.x==snake[i].x && newPos.y==snake[i].y){
+            return -1;
+        }
+    }
+    //Caso 3: Choque con una manzana
+    if (newPos.x==apple.x && newPos.y==apple.y){
+        snakeLength++;
+        newApple();
+        return 0;
+    }
+    //Caso 4: Movimiento válido a espacio vacío
+    return 0;
+}
+
+
