@@ -5,50 +5,40 @@
 
 typedef struct {
     int x, y;
-} Point;
+} Point;        //Ubicaciones dentro de la matriz 8x8
 typedef enum {
     ARRIBA, ABAJO, IZQ, DER
-} Direction;
+} Direction;    //Direcciones en la que puede moverse la vibora
 
-Point snake[ANCHO * ALTO];
-int snakeLength;
-Point apple;
-Direction direction;
+Point snake[ANCHO * ALTO];  //Arreglo de posiciones ocupadas por la vibora
+uint8_t snakeLength;        //Cantidad de posiciones ocupadas por la vibora
+Point apple;                //Ubicación actual de la manzana a comer
+Direction direction;        //Direccion actual en la que se mueve la vibora
+uint8_t appleCounter = 0;   //Cantidad de manzanas ya comidas
 
 void configPulsadores(); // Interrupciones Externas
-void configTimers();     // Tick para mover la vibora + contador de segundos de juego?
+void configTimers();     // Tick para mover la vibora + contador de segundos de juego? +
 void configADC();        // Potenciometro para regular velocidad de juego
 void configDAC();        // Salida de sonido para WIN/GameOver
 void configI2C();        // Comunicación con Matriz Led
 void configEUART();      // Envio de estadisticas
 
 
-
 uint8_t checkCollisions(Point newPos);
 void updateDirection(Direction new, Direction avoid);
-
-/*  Genera posición random para nueva manzana
-    - Chequea si la posición está ocupada por la vibora
-    - Update de la posición al elemento "apple"
-*/
-void newApple(); 
+void createNewApple(); 
 void moveSnake();
-
 //Chequea y envía los leds a encender a la matriz via I2P
 void render();
-
 /*  Lee el valor de conversión del ADC y asigna uno de los tres niveles de velocidad 
     de juego seteando el timer principal acordemente
 */
 void setDifficulty(uint16_t value);
-
 //Se encarga de enviar las estadisticas de la partida a la PC
 void sendStats();
 void initGame();
-
-//Detiene el juego
+//Detiene el juego, congelando el movimiento de la vibora
 void stopGame();
-
 
 int main() {
     initGame();
@@ -75,21 +65,22 @@ void initGame(){
 
 // Genera la nueva posición de la vibora y si es válida la actualiza en el arreglo snake
 void moveSnake(){   
-    Point newPos = snake[0];
+    Point newPos = snake[0]; //Copia de la posición actual de la cabeza de la vibora
     if(direction==ARRIBA){
         newPos.y++;
     } else if(direction==ABAJO){
         newPos.y--;
     } else if(direction==DER){
         newPos.x++;
-    } else{
+    } else{     //direction==IZQ
         newPos.x--;
     }
-    if(!checkCollisions(newPos)){ //Es un movimiento válido
-        for(int i=snakeLength-1;i>0;i--){ //Muevo los puntos de la vibora un lugar a la derecha dentro del array
-            snake[i]=snake[i-1];
+
+    if(!checkCollisions(newPos)){ //Chequeo si estoy haciendo un movimiento válido
+        for(int i=snakeLength-1;i>0;i--){ //Recorro el arreglo en orden inverso
+            snake[i]=snake[i-1];    //Muevo las posiciones de la vibora un lugar a la derecha dentro del array
         }
-        snake[0]=newPos; //Guardo la nueva posición de la cabeza de la vibora en la posición 0
+        snake[0]=newPos; //Guardo la nueva posición de la cabeza de la vibora
     } else{
         stopGame();
         //Sonido de GameOver
@@ -100,7 +91,7 @@ void moveSnake(){
 /*  Chequea si el proximo movimiento newPos de la vibora contra cuatro situaciones:
     - Fuera de los limites -> GameOver: Sonido + StopTotal + Enviar stats
     - Choque contra si misma -> GameOver
-    - Choque con la manzana -> moveSnake + WIN: Sonido + newApple + updateLength
+    - Choque con la manzana -> moveSnake + WIN: Sonido + createNewApple + updateLength
     - Espacio libre -> moveSnake
     ---
        Return: -1 = Game Over // 0 = moveSnake
@@ -119,7 +110,8 @@ uint8_t checkCollisions(Point newPos){
     //Caso 3: Choque con una manzana
     if (newPos.x==apple.x && newPos.y==apple.y){
         snakeLength++;
-        newApple();
+        appleCounter++;
+        createNewApple();
         //Sonido de WIN
         return 0;
     }
@@ -136,3 +128,21 @@ void updateDirection(Direction new, Direction avoid){
     }
 }
 
+/*  Genera posición random para nueva manzana
+    - Chequea si la posición está ocupada por la vibora
+    - Update de la posición al elemento "apple"
+*/
+void createNewApple(){    //INCOMPLETO
+    Point newApple;
+    uint8_t flag = 1;
+    while(flag!=0){
+        flag = 0;
+        //----------GENERAR POSICIÖN RANDOM PARA newApple-------------
+        for(int i=0:i<snakeLength;i++){ //Verifico la posición de newApple contra todas las de la vibora
+            if(snake[i].x==newApple.x && snake[i].y==newApple.y){
+                flag++; //Si encuentra una coincidencia, levanto la bandera
+            }
+        }
+    }
+    apple=newApple;
+}
