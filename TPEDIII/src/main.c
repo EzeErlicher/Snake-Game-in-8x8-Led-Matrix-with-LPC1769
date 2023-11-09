@@ -1,6 +1,23 @@
 #include <LPC17xx.h>
 #include <string.h>
 #include <lpc17xx_uart.h>
+#define  X0  (0x0020)
+#define  X1  (0x0001)
+#define  X2  (0x0002)
+#define  X3  (0x0008)
+#define  X4  (0x0004)
+#define  X5  (0x0010)
+#define  X6  (0x0040)
+#define  X7  (0x0080)
+
+#define  Y0 (0x0DF0)
+#define  Y1 (0x07F0)
+#define  Y2 (0x0EF0)
+#define  Y3 (0x0BF0)
+#define  Y4 (0x0FE0)
+#define  Y5 (0x0F70)
+#define  Y6 (0x0FD0)
+#define  Y7 (0x0FB0)
 
 #define ANCHO 8
 #define ALTO 8
