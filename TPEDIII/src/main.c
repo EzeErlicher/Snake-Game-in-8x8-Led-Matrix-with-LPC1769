@@ -30,6 +30,11 @@
 #define ANCHO 8
 #define ALTO 8
 
+uint8_t  actualX=0,
+             actualY=0xF;
+    uint16_t FIOX=0,
+             FIOY=0xF;
+
 typedef struct {
     uint8_t x, y;
 } Point;        //Ubicaciones dentro de la matriz 8x8
@@ -72,9 +77,9 @@ void initGame();
 void stopGame();
 void getRandomPair(uint8_t* a, uint8_t* b);
 
-void delay(uint32_t times){
-    for(uint32_t i=0; i<times;i++)
-        for(uint32_t j=0; j<times;j++)
+void delay(uint32_t times) {
+	for(uint32_t i=0; i<times; i++)
+		for(uint32_t j=0; j<times; j++);
 }
 
 int main() {
@@ -289,10 +294,10 @@ void sendStats(){
 }
 
 void render(){
-    uint8_t  actualX=0,
-             actualY=0xF;
-    uint16_t FIOX=0,
-             FIOY=0xF;
+     actualX=0;
+     actualY=0xF;
+     FIOX=0;
+     FIOY=0xF;
 
     actualX |= (1<<apple.x);
     actualY |= (1<<apple.y);
