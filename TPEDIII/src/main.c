@@ -107,10 +107,10 @@ void configPulsadores(){
 } // Interrupciones Externas
 
 void configTimers(){
-    //Configuro el timer 0 para que interrumpa cada 1ms
+    //Configuro el timer 0 para que interrumpa cada 0.5ms
     TIM_TIMERCFG_Type TIMConfigStruct;
     TIMConfigStruct.PrescaleOption = TIM_PRESCALE_USVAL;
-    TIMConfigStruct.PrescaleValue = 1000;
+    TIMConfigStruct.PrescaleValue = 500000;
     TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &TIMConfigStruct);
     TIM_Cmd(LPC_TIM0, ENABLE);
     TIM_ResetCounter(LPC_TIM0);
