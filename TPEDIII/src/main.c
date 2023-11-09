@@ -2,12 +2,13 @@
 #include <string.h>
 #include <lpc17xx_uart.h>
 
-#define ANCHO  8
+#define ANCHO 8
 #define ALTO 8
 
 typedef struct {
     uint8_t x, y;
 } Point;        //Ubicaciones dentro de la matriz 8x8
+
 typedef enum {
     ARRIBA, ABAJO, IZQ, DER
 } Direction;    //Direcciones en la que puede moverse la vibora
@@ -59,6 +60,68 @@ int main() {
 //              CONFIGURACIONES
 //***********************************************
 
+void configPulsadores(){
+    //Configuro los pines de los pulsadores
+    PINSEL_CFG_Type PinCfg;
+    PinCfg.Funcnum = 1;
+    PinCfg.OpenDrain = 0;
+    PinCfg.Pinmode = 0;
+    PinCfg.Portnum = 2;
+    PinCfg.Pinnum = 0;
+    PINSEL_ConfigPin(&PinCfg); //P2.0 EINT0
+    PinCfg.Pinnum = 1;
+    PINSEL_ConfigPin(&PinCfg); //P2.1 EINT1
+    PinCfg.Pinnum = 2;
+    PINSEL_ConfigPin(&PinCfg); //P2.2 EINT2
+    PinCfg.Pinnum = 3;
+    PINSEL_ConfigPin(&PinCfg); //P2.3 EINT3
+
+    //Configuro las interrupciones externas
+    EXTI_InitTypeDef EXTICfg, EXTICfg1, EXTICfg2, EXTICfg3;
+
+    EXTICfg.EXTI_Line = EXTI_EINT0;
+    EXTICfg.EXTI_Mode = EXTI_MODE_EDGE_SENSITIVE;
+    EXTICfg.EXTI_polarity = EXTI_POLARITY_LOW_ACTIVE_OR_FALLING_EDGE;
+    EXTI_Config(&EXTICfg);
+    // Configuración para EINT1
+    EXTICfg1.EXTI_Line = EXTI_EINT1;
+    EXTICfg1.EXTI_Mode = EXTI_MODE_EDGE_SENSITIVE;
+    EXTICfg1.EXTI_polarity = EXTI_POLARITY_LOW_ACTIVE_OR_FALLING_EDGE;
+    EXTI_Config(&EXTICfg1);
+    // Configuración para EINT2
+    EXTICfg2.EXTI_Line = EXTI_EINT2;
+    EXTICfg2.EXTI_Mode = EXTI_MODE_EDGE_SENSITIVE;
+    EXTICfg2.EXTI_polarity = EXTI_POLARITY_LOW_ACTIVE_OR_FALLING_EDGE;
+    EXTI_Config(&EXTICfg2);
+    // Configuración para EINT3
+    EXTICfg3.EXTI_Line = EXTI_EINT3;
+    EXTICfg3.EXTI_Mode = EXTI_MODE_EDGE_SENSITIVE;
+    EXTICfg3.EXTI_polarity = EXTI_POLARITY_LOW_ACTIVE_OR_FALLING_EDGE;
+    EXTI_Config(&EXTICfg3);
+
+    //Habilito las interrupciones externas
+    EXTI_ClearEXTIFlag(EXTI_EINT0);
+    EXTI_ClearEXTIFlag(EXTI_EINT1);
+    EXTI_ClearEXTIFlag(EXTI_EINT2);
+    EXTI_ClearEXTIFlag(EXTI_EINT3);
+} // Interrupciones Externas
+
+void configTimers(){
+    //Configuro el timer 0 para que interrumpa cada 0.5ms
+    TIM_TIMERCFG_Type TIMConfigStruct;
+    TIMConfigStruct.PrescaleOption = TIM_PRESCALE_USVAL;
+    TIMConfigStruct.PrescaleValue = 500000;
+    TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &TIMConfigStruct);
+    TIM_Cmd(LPC_TIM0, ENABLE);
+    TIM_ResetCounter(LPC_TIM0);
+    TIM_UpdateMatchValue(LPC_TIM0, TIM_MR0, 1, TIM_MATCH_UPDATE_NOW);
+    TIM_ResetCounter(LPC_TIM0);
+    TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
+    TIM_Cmd(LPC_TIM0, ENABLE);
+    NVIC_EnableIRQ(TIMER0_IRQn);j
+}     // Tick para mover la vibora
+
+
 void configSysTick(){
     //Configura para que SysTick interrumpa cada 1ms
     SysTick_Config(SystemCoreClock / 1000);
@@ -103,8 +166,8 @@ void initGame(){
     direction = DER;
 
     snake[0].x = 0; snake[0].y = 4;
-    snake[1].x = 0; snake[1].y = 5;
-    snake[2].x = 0; snake[2].y = 6;
+    snake[1].x = 1; snake[1].y = 4;
+    snake[2].x = 2; snake[2].y = 4;
 
     apple.x=4;
     apple.y=6;
