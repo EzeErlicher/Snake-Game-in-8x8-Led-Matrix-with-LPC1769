@@ -125,17 +125,19 @@ void configPulsadores(){
 } // Interrupciones Externas
 
 void configTimers(){
-    //Configuro el timer 0 para que interrumpa cada 0.5ms
+    //Configuro el timer 0 para que interrumpa cada 1ms
     TIM_TIMERCFG_Type TIMConfigStruct;
     TIMConfigStruct.PrescaleOption = TIM_PRESCALE_USVAL;
-    TIMConfigStruct.PrescaleValue = 500000;
+    TIMConfigStruct.PrescaleValue = 1000;
     TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &TIMConfigStruct);
-    TIM_Cmd(LPC_TIM0, ENABLE);
-    TIM_ResetCounter(LPC_TIM0);
-    TIM_UpdateMatchValue(LPC_TIM0, TIM_MR0, 1, TIM_MATCH_UPDATE_NOW);
-    TIM_ResetCounter(LPC_TIM0);
-    TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
-    TIM_Cmd(LPC_TIM0, ENABLE);
+    TIM_CONFIGMATCH_Type MatchConfig;
+    MatchConfig.MatchChannel = 0;
+    MatchConfig.IntOnMatch = ENABLE;
+    MatchConfig.ResetOnMatch = ENABLE;
+    MatchConfig.StopOnMatch = DISABLE;
+    MatchConfig.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
+    MatchConfig.MatchValue = 5000;
+    
     NVIC_EnableIRQ(TIMER0_IRQn);j
 }     // Tick para mover la vibora
 
