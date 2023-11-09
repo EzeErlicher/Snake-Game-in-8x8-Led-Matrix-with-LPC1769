@@ -8,24 +8,8 @@
 #include "lpc17xx_uart.h"
 #include "lpc17xx_pinsel.h"
 
-
-#define  X0  (0x0020)
-#define  X1  (0x0001)
-#define  X2  (0x0002)
-#define  X3  (0x0008)
-#define  X4  (0x0004)
-#define  X5  (0x0010)
-#define  X6  (0x0040)
-#define  X7  (0x0080)
-
-#define  Y0 (0x0DF0)
-#define  Y1 (0x07F0)
-#define  Y2 (0x0EF0)
-#define  Y3 (0x0BF0)
-#define  Y4 (0x0FE0)
-#define  Y5 (0x0F70)
-#define  Y6 (0x0FD0)
-#define  Y7 (0x0FB0)
+uint16_t X[0x0020,0x0001,0x0002,0x0008,0x0004,0x0010,0x0040,0x0080]
+uint16_t Y[0x0DF0,0x07F0,0x0EF0,0x0BF0,0x0FE0,0x0F70,0x0FD0,0x0FB0]
 
 #define ANCHO 8
 #define ALTO 8
@@ -306,54 +290,13 @@ void render(){
         actualY |= ~(1<<snake[i].y);
     }
 
-    if(actualX & 1){
-        FIOX |= X0;
-    }
-    if(actualX & 1<<1){
-        FIOX |= X1;
-    }
-    if(actualX & 1<<2){
-        FIOX |= X2;
-    }
-    if(actualX & 1<<3){
-        FIOX |= X3;
-    }
-    if(actualX & 1<<4){
-        FIOX |= X4;
-    }
-    if(actualX & 1<<5){
-        FIOX |= X5;
-    }
-    if(actualX & 1<<6){
-        FIOX |= X6;
-    }
-    if(actualX & 1<<7){
-        FIOX |= X7;
-    }
-
-    if(actualY & 1){
-        FIOY &= Y0;
-    }
-    if(actualY & 1<<1){
-        FIOY &= Y1;
-    }
-    if(actualY & 1<<2){
-        FIOY &= Y2;
-    }
-    if(actualY & 1<<3){
-        FIOY &= Y3;
-    }
-    if(actualY & 1<<4){
-        FIOY &= Y4;
-    }
-    if(actualY & 1<<5){
-        FIOY &= Y5;
-    }
-    if(actualY & 1<<6){
-        FIOY &= Y6;
-    }
-    if(actualY & 1<<7){
-        FIOY &= Y7;
+    for(int i=0;i<8;i++){
+        if(actualX & 1<<i){
+            FIOX |= X[i];
+        }
+        if(actualY & 1<<i){
+            FIOY &= Y[i];
+        }
     }
 
     LPC_GPIO2->FIOPINL = FIOX;
