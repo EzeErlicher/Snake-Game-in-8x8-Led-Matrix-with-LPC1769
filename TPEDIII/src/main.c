@@ -1,10 +1,12 @@
 #include <LPC17xx.h>
+#include <string.h>
+#include <lpc17xx_uart.h>
 
 #define ANCHO  8
 #define ALTO 8
 
 typedef struct {
-    int x, y;
+    uint8_t x, y;
 } Point;        //Ubicaciones dentro de la matriz 8x8
 typedef enum {
     ARRIBA, ABAJO, IZQ, DER
@@ -16,12 +18,16 @@ Point apple;                //Ubicación actual de la manzana a comer
 Direction direction;        //Direccion actual en la que se mueve la vibora
 uint8_t appleCounter = 0;   //Cantidad de manzanas ya comidas
 
+volatile uint16_t secondsCounter = 0; 
+
+
 void configPulsadores(); // Interrupciones Externas
-void configTimers();     // Tick para mover la vibora + contador de segundos de juego? +
+void configTimers();     // Tick para mover la vibora
 void configADC();        // Potenciometro para regular velocidad de juego
 void configDAC();        // Salida de sonido para WIN/GameOver
-void configI2C();        // Comunicación con Matriz Led
-void configEUART();      // Envio de estadisticas
+void configGPIO();       // Matriz Led
+void configUART();       // Envio de estadisticas
+void configSysTick();    // Obtención de seeds para generar random
 
 
 uint8_t checkCollisions(Point newPos);
@@ -34,11 +40,11 @@ void render();
     de juego seteando el timer principal acordemente
 */
 void setDifficulty(uint16_t value);
-//Se encarga de enviar las estadisticas de la partida a la PC
 void sendStats();
 void initGame();
 //Detiene el juego, congelando el movimiento de la vibora
 void stopGame();
+void getRandomPair(uint8_t* a, uint8_t* b);
 
 int main() {
     initGame();
@@ -48,6 +54,47 @@ int main() {
 
     return 0;
 }
+
+//***********************************************
+//              CONFIGURACIONES
+//***********************************************
+
+void configSysTick(){
+    //Configura para que SysTick interrumpa cada 1ms
+    SysTick_Config(SystemCoreClock / 1000);
+}
+
+void configUART(){
+    //Configuro los pines Rx y Tx
+    PINSEL_CFG_Type PinCfg;
+	PinCfg.Funcnum = 1;
+	PinCfg.OpenDrain = 0;
+	PinCfg.Pinmode = 0;
+	PinCfg.Pinnum = 10;
+	PinCfg.Portnum = 0;
+	PINSEL_ConfigPin(&PinCfg); //P0.10
+	PinCfg.Pinnum = 11;
+	PINSEL_ConfigPin(&PinCfg); //P0.11
+
+    UART_CFG_Type UARTConfigStruct;           //Uso la configuración por defecto + baudRate=9600
+    UARTConfigStruct.Baud_rate = 9600;
+	UART_ConfigStructInit(&UARTConfigStruct); //Sin paridad, modo 5bits de ancho, 1bit de stop
+	UART_Init(LPC_UART0, &UARTConfigStruct);
+
+
+	UART_FIFO_CFG_Type UARTFIFOConfigStruct;  //Uso la configuración por defecto y desactivo DMA
+    UARTFIFOConfigStruct.FIFO_DMAMode = DISABLE;
+	UART_FIFOConfigStructInit(&UARTFIFOConfigStruct); //Reseteo ambos buffer, nivel de trigger 0
+    UART_FIFOConfig(LPC_UART0, &UARTFIFOConfigStruct);
+	//Habilito la transmisión
+	UART_TxCmd(LPC_UART0, ENABLE);
+}
+
+
+
+//***********************************************
+//                MECANICAS
+//***********************************************
 
 //Inicializa la vibora con tres leds de largo y su dirección + una manzana inicial
 void initGame(){
@@ -132,17 +179,57 @@ void updateDirection(Direction new, Direction avoid){
     - Chequea si la posición está ocupada por la vibora
     - Update de la posición al elemento "apple"
 */
-void createNewApple(){    //INCOMPLETO
+void createNewApple(){    
     Point newApple;
     uint8_t flag = 1;
     while(flag!=0){
         flag = 0;
-        //----------GENERAR POSICIÖN RANDOM PARA newApple-------------
+        getRandomPair(&newApple.x,&newApple.y);
         for(int i=0:i<snakeLength;i++){ //Verifico la posición de newApple contra todas las de la vibora
             if(snake[i].x==newApple.x && snake[i].y==newApple.y){
                 flag++; //Si encuentra una coincidencia, levanto la bandera
             }
         }
     }
-    apple=newApple;
+    apple=newApple; //Guardo la nueva posición
 }
+
+//Usa el value de Systick para generar dos valores en el rango [0:7] que guarda en a y b
+void getRandomPair(uint8_t* a, uint8_t* b){
+    volatile uint32_t seed = SysTick->VAL;
+    seed ^= (seed << 13);
+
+    *a = (seed & 0x07);
+    *b = ((seed >> 3) & 0x07);
+}
+
+//Se encarga de enviar las estadisticas de la partida a la PC
+void sendStats(){
+    char data1[] = "Hola mi loco! Acá van los datos de la partida:\n\r";
+    char data2[75]; //Reservo espacio suficiente para almacenar los datos de la partida como string
+
+    sprintf(data2, "Cantidad de segundos jugados: %u - Manzanas comidas: %u\n\r", secondsCounter, appleCounter);
+
+    UART_Send(LPC_UART0, (uint8_t*)data, sizeof(data), BLOCKING);
+    UART_Send(LPC_UART0, (uint8_t*)data2, sizeof(data2), BLOCKING);
+
+    return;
+}
+
+
+//***********************************************
+//              INTERRUPCIONES
+//***********************************************
+
+//Lleva la cuenta de los segundos de la partida
+void Systick_IRQHandler(){
+    static uint8_t millisCount = 0;
+	millisCount++;
+
+    if(millisCount >= 1000){
+	    secondsCounter++;
+	    millisCount = 0;
+	}
+}
+
+
