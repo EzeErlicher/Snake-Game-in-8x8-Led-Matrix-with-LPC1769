@@ -72,14 +72,23 @@ void initGame();
 void stopGame();
 void getRandomPair(uint8_t* a, uint8_t* b);
 
+void delay(uint32_t times){
+    for(uint32_t i=0; i<times;i++)
+        for(uint32_t j=0; j<times;j++)
+}
+
 int main() {
     initGame();
     //El juego no debería comenzar hasta que el jugador apriete uno de los pulsadores
 
     configGPIO();
     configSysTick();
-    configTimers();
-    while (1) {}
+    //configTimers();
+    while (1) {
+        moveSnake();
+        render();
+        delay(5000);
+    }
 
     return 0;
 }
@@ -103,12 +112,12 @@ void configTimers(){
     MatchConfig.ResetOnMatch = ENABLE;
     MatchConfig.StopOnMatch = DISABLE;
     MatchConfig.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
-    MatchConfig.MatchValue = 500;
+    MatchConfig.MatchValue = 5000;
     TIM_ConfigMatch(LPC_TIM0,&MatchConfig);
 
     NVIC_EnableIRQ(TIMER0_IRQn);
 
-    TIM_Cmd(LPC_TIM0,ENABLE);
+    //TIM_Cmd(LPC_TIM0,ENABLE);
 }
 
 void configSysTick(){
