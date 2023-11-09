@@ -8,16 +8,16 @@
 #include "lpc17xx_uart.h"
 #include "lpc17xx_pinsel.h"
 
-uint16_t X[0x0020,0x0001,0x0002,0x0008,0x0004,0x0010,0x0040,0x0080]
-uint16_t Y[0x0DF0,0x07F0,0x0EF0,0x0BF0,0x0FE0,0x0F70,0x0FD0,0x0FB0]
+uint16_t X[8]={0x0020,0x0001,0x0002,0x0008,0x0004,0x0010,0x0040,0x0080};
+uint16_t Y[8]={0x0DF0,0x07F0,0x0EF0,0x0BF0,0x0FE0,0x0F70,0x0FD0,0x0FB0};
 
 #define ANCHO 8
 #define ALTO 8
 
-uint8_t  actualX=0,
-             actualY=0xF;
-    uint16_t FIOX=0,
-             FIOY=0xF;
+uint8_t actualX=0;
+uint8_t actualY=0xFF;
+uint16_t FIOX=0;
+uint16_t FIOY=0xFF;
 
 typedef struct {
     uint8_t x, y;
@@ -76,7 +76,7 @@ int main() {
     while (1) {
         moveSnake();
         render();
-        delay(5000);
+        delay(2500);
     }
 
     return 0;
@@ -167,8 +167,8 @@ void initGame(){
     snake[1].x = 1; snake[1].y = 4;
     snake[2].x = 2; snake[2].y = 4;
 
-    apple.x=4;
-    apple.y=6;
+    apple.x=6;
+    apple.y=4;
 }
 
 // Genera la nueva posición de la vibora y si es válida la actualiza en el arreglo snake
@@ -279,15 +279,15 @@ void sendStats(){
 
 void render(){
      actualX=0;
-     actualY=0xF;
+     actualY=0x00;
      FIOX=0;
-     FIOY=0xF;
+     FIOY=0xFFFF;
 
     actualX |= (1<<apple.x);
     actualY |= (1<<apple.y);
     for(int i=0;i<snakeLength;i++){
         actualX |= (1<<snake[i].x);
-        actualY |= ~(1<<snake[i].y);
+        actualY |= (1<<snake[i].y);
     }
 
     for(int i=0;i<8;i++){
@@ -308,7 +308,7 @@ void render(){
 //***********************************************
 
 //Lleva la cuenta de los segundos de la partida
-void Systick_IRQHandler(){
+void SysTick_Handler(){
     static uint8_t millisCount = 0;
 	millisCount++;
 
