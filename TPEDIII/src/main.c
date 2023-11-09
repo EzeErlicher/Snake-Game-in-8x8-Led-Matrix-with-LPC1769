@@ -16,8 +16,7 @@ uint16_t Y[8]={0x0DF0,0x07F0,0x0EF0,0x0BF0,0x0FE0,0x0F70,0x0FD0,0x0FB0};
 
 uint8_t actualX=0;
 uint8_t actualY=0xFF;
-uint16_t FIOX=0;
-uint16_t FIOY=0xFF;
+uint16_t secondsCounter = 0;
 
 typedef struct {
     uint8_t x, y;
@@ -33,7 +32,7 @@ Point apple;                //Ubicación actual de la manzana a comer
 Direction direction;        //Direccion actual en la que se mueve la vibora
 uint8_t appleCounter = 0;   //Cantidad de manzanas ya comidas
 
-volatile uint16_t secondsCounter = 0;
+
 
 
 void configPulsadores(); // Interrupciones Externas
@@ -282,8 +281,8 @@ void sendStats(){
 void render(){
      actualX=0;
      actualY=0x00;
-     FIOX=0;
-     FIOY=0xFFFF;
+     uint16_t FIOX=0;
+     uint16_t FIOY=0xFFFF;
 
     actualX |= (1<<apple.x);
     actualY |= (1<<apple.y);
