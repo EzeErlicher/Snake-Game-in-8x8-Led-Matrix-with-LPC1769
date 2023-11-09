@@ -72,11 +72,12 @@ int main() {
 
     configGPIO();
     configSysTick();
-    //configTimers();
+    configTimers();
+    render();
     while (1) {
-        moveSnake();
-        render();
-        delay(2500);
+        //moveSnake();
+        //render();
+        //delay(2500);
     }
 
     return 0;
@@ -89,24 +90,25 @@ int main() {
 //Configura EINT0 (ARRIBA), EINT1 (ABAJO), EINT2 (IZQ), EINT3 (DER)
 
 void configTimers(){
+
+	TIM_MATCHCFG_Type MatchConfig;
+	    MatchConfig.MatchChannel = 0;
+	    MatchConfig.IntOnMatch = ENABLE;
+	    MatchConfig.ResetOnMatch = ENABLE;
+	    MatchConfig.StopOnMatch = DISABLE;
+	    MatchConfig.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
+	    MatchConfig.MatchValue = 1500;
+	    TIM_ConfigMatch(LPC_TIM0,&MatchConfig);
+
     //Configuro el timer 0 para que interrumpa cada 1ms
     TIM_TIMERCFG_Type TIMConfigStruct;
     TIMConfigStruct.PrescaleOption = TIM_PRESCALE_USVAL;
     TIMConfigStruct.PrescaleValue = 1000;
     TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &TIMConfigStruct);
 
-    TIM_MATCHCFG_Type MatchConfig;
-    MatchConfig.MatchChannel = 0;
-    MatchConfig.IntOnMatch = ENABLE;
-    MatchConfig.ResetOnMatch = ENABLE;
-    MatchConfig.StopOnMatch = DISABLE;
-    MatchConfig.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
-    MatchConfig.MatchValue = 5000;
-    TIM_ConfigMatch(LPC_TIM0,&MatchConfig);
-
     NVIC_EnableIRQ(TIMER0_IRQn);
 
-    //TIM_Cmd(LPC_TIM0,ENABLE);
+    TIM_Cmd(LPC_TIM0,ENABLE);
 }
 
 void configSysTick(){
@@ -163,9 +165,9 @@ void initGame(){
     snakeLength = 3;
     direction = DER;
 
-    snake[0].x = 0; snake[0].y = 4;
+    snake[0].x = 2; snake[0].y = 4;
     snake[1].x = 1; snake[1].y = 4;
-    snake[2].x = 2; snake[2].y = 4;
+    snake[2].x = 0; snake[2].y = 4;
 
     apple.x=6;
     apple.y=4;
@@ -321,6 +323,7 @@ void SysTick_Handler(){
 void TIMER0_IRQHandler(){
     moveSnake();
     render();
+    TIM_ClearIntPending(LPC_TIM0,TIM_MR0_INT);
 }
 
 
