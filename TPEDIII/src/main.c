@@ -130,16 +130,20 @@ void configTimers(){
     TIMConfigStruct.PrescaleOption = TIM_PRESCALE_USVAL;
     TIMConfigStruct.PrescaleValue = 1000;
     TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &TIMConfigStruct);
+
     TIM_CONFIGMATCH_Type MatchConfig;
     MatchConfig.MatchChannel = 0;
     MatchConfig.IntOnMatch = ENABLE;
     MatchConfig.ResetOnMatch = ENABLE;
     MatchConfig.StopOnMatch = DISABLE;
     MatchConfig.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
-    MatchConfig.MatchValue = 5000;
+    MatchConfig.MatchValue = 500;
+    TIM_ConfigMatch(LPC_TIM0,&MatchConfig);
     
-    NVIC_EnableIRQ(TIMER0_IRQn);j
-}     // Tick para mover la vibora
+    NVIC_EnableIRQ(TIMER0_IRQn);
+
+    TIM_Cmd(LPC_TIM0,ENABLE);
+}
 
 void configSysTick(){
     //Configura para que SysTick interrumpa cada 1ms
