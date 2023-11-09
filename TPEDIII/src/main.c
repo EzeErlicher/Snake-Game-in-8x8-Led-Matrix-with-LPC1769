@@ -121,7 +121,6 @@ void configTimers(){
     NVIC_EnableIRQ(TIMER0_IRQn);j
 }     // Tick para mover la vibora
 
-
 void configSysTick(){
     //Configura para que SysTick interrumpa cada 1ms
     SysTick_Config(SystemCoreClock / 1000);
@@ -293,6 +292,11 @@ void Systick_IRQHandler(){
 	    secondsCounter++;
 	    millisCount = 0;
 	}
+}
+
+void TIMER0_IRRQHandler(){
+    moveSnake();
+    render();
 }
 
 
