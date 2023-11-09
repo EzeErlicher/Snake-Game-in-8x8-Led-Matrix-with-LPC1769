@@ -1,6 +1,14 @@
 #include <LPC17xx.h>
 #include <string.h>
-#include <lpc17xx_uart.h>
+#include "LPC17xx.h"
+#include "lpc17xx_timer.h"
+#include "lpc17xx_adc.h"
+#include "lpc17xx_dac.h"
+#include "lpc17xx_gpdma.h"
+#include "lpc17xx_uart.h"
+#include "lpc17xx_pinsel.h"
+
+
 #define  X0  (0x0020)
 #define  X1  (0x0001)
 #define  X2  (0x0002)
@@ -36,7 +44,7 @@ Point apple;                //Ubicación actual de la manzana a comer
 Direction direction;        //Direccion actual en la que se mueve la vibora
 uint8_t appleCounter = 0;   //Cantidad de manzanas ya comidas
 
-volatile uint16_t secondsCounter = 0; 
+volatile uint16_t secondsCounter = 0;
 
 
 void configPulsadores(); // Interrupciones Externas
@@ -50,11 +58,11 @@ void configSysTick();    // Obtención de seeds para generar random
 
 uint8_t checkCollisions(Point newPos);
 void updateDirection(Direction new, Direction avoid);
-void createNewApple(); 
+void createNewApple();
 void moveSnake();
 //Chequea y envía los leds a encender a la matriz via I2P
 void render();
-/*  Lee el valor de conversión del ADC y asigna uno de los tres niveles de velocidad 
+/*  Lee el valor de conversión del ADC y asigna uno de los tres niveles de velocidad
     de juego seteando el timer principal acordemente
 */
 void setDifficulty(uint16_t value);
@@ -68,6 +76,9 @@ int main() {
     initGame();
     //El juego no debería comenzar hasta que el jugador apriete uno de los pulsadores
 
+    configGPIO();
+    configSysTick();
+    configTimers();
     while (1) {}
 
     return 0;
@@ -78,51 +89,6 @@ int main() {
 //***********************************************
 
 //Configura EINT0 (ARRIBA), EINT1 (ABAJO), EINT2 (IZQ), EINT3 (DER)
-void configPulsadores(){
-    //Configuro los pines de los pulsadores
-    PINSEL_CFG_Type PinCfg;
-    PinCfg.Funcnum = 1;
-    PinCfg.OpenDrain = 0;
-    PinCfg.Pinmode = 0;
-    PinCfg.Portnum = 2;
-    PinCfg.Pinnum = 0;
-    PINSEL_ConfigPin(&PinCfg); //P2.0 EINT0
-    PinCfg.Pinnum = 1;
-    PINSEL_ConfigPin(&PinCfg); //P2.1 EINT1
-    PinCfg.Pinnum = 2;
-    PINSEL_ConfigPin(&PinCfg); //P2.2 EINT2
-    PinCfg.Pinnum = 3;
-    PINSEL_ConfigPin(&PinCfg); //P2.3 EINT3
-
-    //Configuro las interrupciones externas
-    EXTI_InitTypeDef EXTICfg, EXTICfg1, EXTICfg2, EXTICfg3;
-
-    EXTICfg.EXTI_Line = EXTI_EINT0;
-    EXTICfg.EXTI_Mode = EXTI_MODE_EDGE_SENSITIVE;
-    EXTICfg.EXTI_polarity = EXTI_POLARITY_LOW_ACTIVE_OR_FALLING_EDGE;
-    EXTI_Config(&EXTICfg);
-    // Configuración para EINT1
-    EXTICfg1.EXTI_Line = EXTI_EINT1;
-    EXTICfg1.EXTI_Mode = EXTI_MODE_EDGE_SENSITIVE;
-    EXTICfg1.EXTI_polarity = EXTI_POLARITY_LOW_ACTIVE_OR_FALLING_EDGE;
-    EXTI_Config(&EXTICfg1);
-    // Configuración para EINT2
-    EXTICfg2.EXTI_Line = EXTI_EINT2;
-    EXTICfg2.EXTI_Mode = EXTI_MODE_EDGE_SENSITIVE;
-    EXTICfg2.EXTI_polarity = EXTI_POLARITY_LOW_ACTIVE_OR_FALLING_EDGE;
-    EXTI_Config(&EXTICfg2);
-    // Configuración para EINT3
-    EXTICfg3.EXTI_Line = EXTI_EINT3;
-    EXTICfg3.EXTI_Mode = EXTI_MODE_EDGE_SENSITIVE;
-    EXTICfg3.EXTI_polarity = EXTI_POLARITY_LOW_ACTIVE_OR_FALLING_EDGE;
-    EXTI_Config(&EXTICfg3);
-
-    //Habilito las interrupciones externas
-    EXTI_ClearEXTIFlag(EXTI_EINT0);
-    EXTI_ClearEXTIFlag(EXTI_EINT1);
-    EXTI_ClearEXTIFlag(EXTI_EINT2);
-    EXTI_ClearEXTIFlag(EXTI_EINT3);
-} // Interrupciones Externas
 
 void configTimers(){
     //Configuro el timer 0 para que interrumpa cada 1ms
@@ -131,7 +97,7 @@ void configTimers(){
     TIMConfigStruct.PrescaleValue = 1000;
     TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &TIMConfigStruct);
 
-    TIM_CONFIGMATCH_Type MatchConfig;
+    TIM_MATCHCFG_Type MatchConfig;
     MatchConfig.MatchChannel = 0;
     MatchConfig.IntOnMatch = ENABLE;
     MatchConfig.ResetOnMatch = ENABLE;
@@ -139,7 +105,7 @@ void configTimers(){
     MatchConfig.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
     MatchConfig.MatchValue = 500;
     TIM_ConfigMatch(LPC_TIM0,&MatchConfig);
-    
+
     NVIC_EnableIRQ(TIMER0_IRQn);
 
     TIM_Cmd(LPC_TIM0,ENABLE);
@@ -148,6 +114,17 @@ void configTimers(){
 void configSysTick(){
     //Configura para que SysTick interrumpa cada 1ms
     SysTick_Config(SystemCoreClock / 1000);
+}
+
+void configGPIO(){
+
+    // P0.4 hasta P0.11 como Outputs
+	LPC_GPIO0->FIODIRL|=0x0FF0;
+	LPC_GPIO0->FIOSET|=0xFFFF;
+
+  // P2.0 hasta P0.7 como Outputs
+	LPC_GPIO2->FIODIRL|=0x00FF;
+	LPC_GPIO2->FIOCLRL|=0xFFFF;
 }
 
 void configUART(){
@@ -197,7 +174,7 @@ void initGame(){
 }
 
 // Genera la nueva posición de la vibora y si es válida la actualiza en el arreglo snake
-void moveSnake(){   
+void moveSnake(){
     Point newPos = snake[0]; //Copia de la posición actual de la cabeza de la vibora
     if(direction==ARRIBA){
         newPos.y++;
@@ -215,9 +192,9 @@ void moveSnake(){
         }
         snake[0]=newPos; //Guardo la nueva posición de la cabeza de la vibora
     } else{
-        stopGame();
+        //stopGame();
         //Sonido de GameOver
-        sendStats();
+        //sendStats();
     }
 }
 
@@ -265,13 +242,13 @@ void updateDirection(Direction new, Direction avoid){
     - Chequea si la posición está ocupada por la vibora
     - Update de la posición al elemento "apple"
 */
-void createNewApple(){    
+void createNewApple(){
     Point newApple;
     uint8_t flag = 1;
     while(flag!=0){
         flag = 0;
         getRandomPair(&newApple.x,&newApple.y);
-        for(int i=0:i<snakeLength;i++){ //Verifico la posición de newApple contra todas las de la vibora
+        for(int i=0;i<snakeLength;i++){ //Verifico la posición de newApple contra todas las de la vibora
             if(snake[i].x==newApple.x && snake[i].y==newApple.y){
                 flag++; //Si encuentra una coincidencia, levanto la bandera
             }
@@ -291,7 +268,7 @@ void getRandomPair(uint8_t* a, uint8_t* b){
 
 //Se encarga de enviar las estadisticas de la partida a la PC
 void sendStats(){
-    char data1[] = "Hola mi loco! Acá van los datos de la partida:\n\r";
+    char data[] = "Hola mi loco! Acá van los datos de la partida:\n\r";
     char data2[75]; //Reservo espacio suficiente para almacenar los datos de la partida como string
 
     sprintf(data2, "Cantidad de segundos jugados: %u - Manzanas comidas: %u\n\r", secondsCounter, appleCounter);
@@ -314,7 +291,7 @@ void render(){
         actualX |= (1<<snake[i].x);
         actualY |= ~(1<<snake[i].y);
     }
-    
+
     if(actualX & 1){
         FIOX |= X0;
     }
@@ -384,29 +361,11 @@ void Systick_IRQHandler(){
 	}
 }
 
-void TIMER0_IRRQHandler(){
+void TIMER0_IRQHandler(){
     moveSnake();
     render();
 }
 
-void EINT0_IRQHandler(){
-    updateDirection(ARRIBA, ABAJO);
-    EXTI_ClearEXTIFlag(EXTI_EINT0);
-}
 
-void EINT1_IRQHandler(){
-    updateDirection(ABAJO, ARRIBA);
-    EXTI_ClearEXTIFlag(EXTI_EINT1);
-}
-
-void EINT2_IRQHandler(){
-    updateDirection(IZQ, DER);
-    EXTI_ClearEXTIFlag(EXTI_EINT2);
-}
-
-void EINT3_IRQHandler(){
-    updateDirection(DER, IZQ);
-    EXTI_ClearEXTIFlag(EXTI_EINT3);
-}
 
 
