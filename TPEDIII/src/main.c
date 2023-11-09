@@ -118,7 +118,7 @@ void configTimers(){
     TIM_ResetCounter(LPC_TIM0);
     TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
     TIM_Cmd(LPC_TIM0, ENABLE);
-    NVIC_EnableIRQ(TIMER0_IRQn);
+    NVIC_EnableIRQ(TIMER0_IRQn);j
 }     // Tick para mover la vibora
 
 
@@ -166,8 +166,8 @@ void initGame(){
     direction = DER;
 
     snake[0].x = 0; snake[0].y = 4;
-    snake[1].x = 0; snake[1].y = 5;
-    snake[2].x = 0; snake[2].y = 6;
+    snake[1].x = 1; snake[1].y = 4;
+    snake[2].x = 2; snake[2].y = 4;
 
     apple.x=4;
     apple.y=6;
