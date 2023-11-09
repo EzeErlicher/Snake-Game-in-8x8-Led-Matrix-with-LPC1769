@@ -60,6 +60,7 @@ int main() {
 //              CONFIGURACIONES
 //***********************************************
 
+//Configura EINT0 (ARRIBA), EINT1 (ABAJO), EINT2 (IZQ), EINT3 (DER)
 void configPulsadores(){
     //Configuro los pines de los pulsadores
     PINSEL_CFG_Type PinCfg;
@@ -297,6 +298,26 @@ void Systick_IRQHandler(){
 void TIMER0_IRRQHandler(){
     moveSnake();
     render();
+}
+
+void EINT0_IRQHandler(){
+    updateDirection(ARRIBA, ABAJO);
+    EXTI_ClearEXTIFlag(EXTI_EINT0);
+}
+
+void EINT1_IRQHandler(){
+    updateDirection(ABAJO, ARRIBA);
+    EXTI_ClearEXTIFlag(EXTI_EINT1);
+}
+
+void EINT2_IRQHandler(){
+    updateDirection(IZQ, DER);
+    EXTI_ClearEXTIFlag(EXTI_EINT2);
+}
+
+void EINT3_IRQHandler(){
+    updateDirection(DER, IZQ);
+    EXTI_ClearEXTIFlag(EXTI_EINT3);
 }
 
 
