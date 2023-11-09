@@ -295,6 +295,72 @@ void sendStats(){
     return;
 }
 
+void render(){
+    uint8_t  actualX=0,
+             actualY=0xF;
+    uint16_t FIOX=0,
+             FIOY=0xF;
+
+    actualX |= (1<<apple.x);
+    actualY |= (1<<apple.y);
+    for(int i=0;i<snakeLength;i++){
+        actualX |= (1<<snake[i].x);
+        actualY |= ~(1<<snake[i].y);
+    }
+    
+    if(actualX & 1){
+        FIOX |= X0;
+    }
+    if(actualX & 1<<1){
+        FIOX |= X1;
+    }
+    if(actualX & 1<<2){
+        FIOX |= X2;
+    }
+    if(actualX & 1<<3){
+        FIOX |= X3;
+    }
+    if(actualX & 1<<4){
+        FIOX |= X4;
+    }
+    if(actualX & 1<<5){
+        FIOX |= X5;
+    }
+    if(actualX & 1<<6){
+        FIOX |= X6;
+    }
+    if(actualX & 1<<7){
+        FIOX |= X7;
+    }
+
+    if(actualY & 1){
+        FIOY &= Y0;
+    }
+    if(actualY & 1<<1){
+        FIOY &= Y1;
+    }
+    if(actualY & 1<<2){
+        FIOY &= Y2;
+    }
+    if(actualY & 1<<3){
+        FIOY &= Y3;
+    }
+    if(actualY & 1<<4){
+        FIOY &= Y4;
+    }
+    if(actualY & 1<<5){
+        FIOY &= Y5;
+    }
+    if(actualY & 1<<6){
+        FIOY &= Y6;
+    }
+    if(actualY & 1<<7){
+        FIOY &= Y7;
+    }
+
+    LPC_GPIO2->FIOPINL = FIOX;
+    LPC_GPIO0->FIOPINL = FIOY;
+}
 
 //***********************************************
 //              INTERRUPCIONES
