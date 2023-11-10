@@ -2,6 +2,7 @@
 #include <string.h>
 #include "LPC17xx.h"
 #include "lpc17xx_timer.h"
+#include "lpc17xx_systick.h"
 #include "lpc17xx_adc.h"
 #include "lpc17xx_dac.h"
 #include "lpc17xx_gpdma.h"
@@ -74,16 +75,18 @@ int main() {
     configGPIO();
     configSysTick();
     configTimers();
-    
+    configUART();
+
     /*while (1) {}*/ //El juego no debería comenzar hasta que el jugador apriete uno de los pulsadores
 
-    //NVIC_EnableIRQ(TIMER0_IRQn);
+    TIM_Cmd(LPC_TIM0,ENABLE);
+
 
     while (1) {
         render();
         //moveSnake();
         //render();
-        delay(500);
+        delay(180);
     }
 
     return 0;
@@ -112,20 +115,26 @@ void configTimers(){
     TIMConfigStruct.PrescaleValue = 1000;
     TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &TIMConfigStruct);
 
-    TIM_Cmd(LPC_TIM0,ENABLE);
+    NVIC_EnableIRQ(TIMER0_IRQn);
+
+    //TIM_Cmd(LPC_TIM0,ENABLE);
 }
 
 void configButtons(){
 
-	LPC_PINCON->PINMODE4|=(3<<24);
+	LPC_PINCON->PINMODE1|=(3<<10);
+	LPC_PINCON->PINMODE1|=(3<<12);
 
-	LPC_GPIO2->FIODIR &= ~(1 << 12);
+	LPC_GPIO0->FIODIR &= ~(1 << 21);
+	LPC_GPIO0->FIODIR &= ~(1 << 22);
+
 
 	// Enable rising edge interrupt for pin 2.12
-	LPC_GPIOINT->IO2IntEnR |=(1<<12);
+	LPC_GPIOINT->IO2IntEnR |=(1<<21);
+	LPC_GPIOINT->IO2IntEnR |=(1<<22);
 
-	LPC_GPIOINT->IO2IntClr |=(1<<12);
-
+	LPC_GPIOINT->IO2IntClr |=(1<<21);
+	LPC_GPIOINT->IO2IntClr |=(1<<22);
 	// Enable EINT3 interrupt
 	NVIC_EnableIRQ(EINT3_IRQn);
 
@@ -154,24 +163,23 @@ void configUART(){
 	PinCfg.Funcnum = 1;
 	PinCfg.OpenDrain = 0;
 	PinCfg.Pinmode = 0;
-	PinCfg.Pinnum = 10;
+	PinCfg.Pinnum = 15;
 	PinCfg.Portnum = 0;
-	PINSEL_ConfigPin(&PinCfg); //P0.10
-	PinCfg.Pinnum = 11;
-	PINSEL_ConfigPin(&PinCfg); //P0.11
+	PINSEL_ConfigPin(&PinCfg); //P0.15
+	PinCfg.Pinnum = 16;
+	PINSEL_ConfigPin(&PinCfg); //P0.16
 
-    UART_CFG_Type UARTConfigStruct;           //Uso la configuración por defecto + baudRate=9600
-    UARTConfigStruct.Baud_rate = 9600;
-	UART_ConfigStructInit(&UARTConfigStruct); //Sin paridad, modo 5bits de ancho, 1bit de stop
-	UART_Init(LPC_UART0, &UARTConfigStruct);
-
-
-	UART_FIFO_CFG_Type UARTFIFOConfigStruct;  //Uso la configuración por defecto y desactivo DMA
-    UARTFIFOConfigStruct.FIFO_DMAMode = DISABLE;
-	UART_FIFOConfigStructInit(&UARTFIFOConfigStruct); //Reseteo ambos buffer, nivel de trigger 0
-    UART_FIFOConfig(LPC_UART0, &UARTFIFOConfigStruct);
-	//Habilito la transmisión
-	UART_TxCmd(LPC_UART0, ENABLE);
+	UART_CFG_Type UARTConfigStruct;
+	UART_FIFO_CFG_Type UARTFIFOConfigStruct;
+		//configuraci n por defecto:
+	UART_ConfigStructInit(&UARTConfigStruct);
+		//inicializa perif rico
+	UART_Init(LPC_UART1, &UARTConfigStruct);
+	UART_FIFOConfigStructInit(&UARTFIFOConfigStruct);
+		//Inicializa FIFO
+	UART_FIFOConfig(LPC_UART1, &UARTFIFOConfigStruct);
+		//Habilita transmisi n
+	UART_TxCmd(LPC_UART1, ENABLE);
 }
 
 
@@ -184,7 +192,7 @@ void configUART(){
 void initGame(){
     // Inicializa la longitud de la vibora y su dirección
     snakeLength = 3;
-    direction = ARRIBA;
+    direction = DER;
 
     snake[0].x = 2; snake[0].y = 4;
     snake[1].x = 1; snake[1].y = 4;
@@ -213,9 +221,9 @@ void moveSnake(){
         }
         snake[0]=newPos; //Guardo la nueva posición de la cabeza de la vibora
     } else{
-        //stopGame();
+        stopGame();
         //Sonido de GameOver
-        //sendStats();
+        sendStats();
     }
 }
 
@@ -289,13 +297,21 @@ void getRandomPair(uint8_t* a, uint8_t* b){
 
 //Se encarga de enviar las estadisticas de la partida a la PC
 void sendStats(){
-    char data[] = "Hola mi loco! Acá van los datos de la partida:\n\r";
-    char data2[75]; //Reservo espacio suficiente para almacenar los datos de la partida como string
+    //uint8_t data[] = "Hola mi loco! Acá van los datos de la partida:\n\r";
+    //char data2[75]; //Reservo espacio suficiente para almacenar los datos de la partida como string
 
-    sprintf(data2, "Cantidad de segundos jugados: %u - Manzanas comidas: %u\n\r", secondsCounter, appleCounter);
+    //sprintf(data2, "Cantidad de segundos jugados: %u - Manzanas comidas: %u\n\r", secondsCounter, appleCounter);
 
-    UART_Send(LPC_UART0, (uint8_t*)data, sizeof(data), BLOCKING);
-    UART_Send(LPC_UART0, (uint8_t*)data2, sizeof(data2), BLOCKING);
+    //UART_Send(LPC_UART1, (uint8_t*)data, sizeof(data), BLOCKING);
+    //UART_Send(LPC_UART1, (uint8_t*)data2, sizeof(data2), BLOCKING);
+
+
+	uint8_t info[] = "Hola mundo\t-\tElectronica Digital 3\t-\tFCEFyN-UNC \n\r";
+
+	while(1){
+		UART_Send(LPC_UART1, info, sizeof(info), BLOCKING);
+	}
+
 
     return;
 }
@@ -312,7 +328,7 @@ void render(){
 
     /*
     actualX |= (1<<apple.x);
-    actualY |= (1<<apple.y);    
+    actualY |= (1<<apple.y);
     for(int i=0;i<snakeLength;i++){
         actualX |= (1<<snake[i].x);
         actualY |= (1<<snake[i].y);
@@ -330,24 +346,24 @@ void render(){
     LPC_GPIO2->FIOPINL = FIOX;
     LPC_GPIO0->FIOPINL = FIOY;
     */
-    
+
     if(!i){     //Renderizar posición de la manzana
-        LPC_GPIO2->FIOPINL = X[apple.X];
-        LPC_GPIO0->FIOPINL = Y[apple.Y];
+        LPC_GPIO2->FIOPINL = X[apple.x];
+        LPC_GPIO0->FIOPINL = Y[apple.y];
     } else{
-        LPC_GPIO2->FIOPINL = X[snake[i-1].X];
-        LPC_GPIO0->FIOPINL = Y[snake[i-1].Y];
+        LPC_GPIO2->FIOPINL = X[snake[i-1].x];
+        LPC_GPIO0->FIOPINL = Y[snake[i-1].y];
     }
     i++;
 }
 
 /* Detiene el juego, congelando el movimiento de la vibora
 *  - Detiene el timer0 (tick del sistema)
-*  - 
+*  -
 */
 void stopGame(){
-    TIM_Cmd(LPC_TIM0,ENABLE);
-    SYSTICK_IntCmd(DISABLE);
+    TIM_Cmd(LPC_TIM0,DISABLE);
+    //SYSTICK_IntCmd(DISABLE);
 }
 
 //***********************************************
@@ -366,14 +382,23 @@ void SysTick_Handler(){
 }
 
 void TIMER0_IRQHandler(){
+	sendStats();
     moveSnake();
     //render();
     TIM_ClearIntPending(LPC_TIM0,TIM_MR0_INT);
 }
 void EINT3_IRQHandler(){
 
-	updateDirection(DER,IZQ);
-	LPC_GPIOINT->IO2IntClr|=(1<<12);
+	if((LPC_GPIOINT->IntStatus)&(1<<21)){
+		//updateDirection(DER,IZQ);
+		LPC_GPIOINT->IO2IntClr |=(1<<21);
+	}
+	else if((LPC_GPIOINT->IntStatus)&(1<<22)){
+
+		updateDirection(DER,IZQ);
+		LPC_GPIOINT->IO2IntClr |=(1<<22);
+	}
+
 
 
 }
