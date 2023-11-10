@@ -7,6 +7,7 @@
 #include "lpc17xx_gpdma.h"
 #include "lpc17xx_uart.h"
 #include "lpc17xx_pinsel.h"
+#include "lpc17xx_exti.h"
 
 uint16_t X[8]={0x0020,0x0001,0x0002,0x0008,0x0004,0x0010,0x0040,0x0080};
 uint16_t Y[8]={0x0DF0,0x07F0,0x0EF0,0x0BF0,0x0FE0,0x0F70,0x0FD0,0x0FB0};
@@ -35,7 +36,7 @@ uint8_t appleCounter = 0;   //Cantidad de manzanas ya comidas
 
 
 
-void configPulsadores(); // Interrupciones Externas
+void configButtons(); // Interrupciones Externas
 void configTimers();     // Tick para mover la vibora
 void configADC();        // Potenciometro para regular velocidad de juego
 void configDAC();        // Salida de sonido para WIN/GameOver
@@ -66,13 +67,24 @@ void delay(uint32_t times) {
 }
 
 int main() {
+
     initGame();
     //El juego no debería comenzar hasta que el jugador apriete uno de los pulsadores
 
+    configButtons();
     configGPIO();
     configSysTick();
     configTimers();
     render();
+
+    /*while (1) {
+            //moveSnake();
+            //render();
+            //delay(2500);
+    }*/
+
+    NVIC_EnableIRQ(TIMER0_IRQn);
+
     while (1) {
         //moveSnake();
         //render();
@@ -105,9 +117,24 @@ void configTimers(){
     TIMConfigStruct.PrescaleValue = 1000;
     TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &TIMConfigStruct);
 
-    NVIC_EnableIRQ(TIMER0_IRQn);
-
     TIM_Cmd(LPC_TIM0,ENABLE);
+}
+
+void configButtons(){
+
+	LPC_PINCON->PINMODE4|=(3<<24);
+
+	LPC_GPIO2->FIODIR &= ~(1 << 12);
+
+	// Enable rising edge interrupt for pin 2.12
+	LPC_GPIOINT->IO2IntEnR |=(1<<12);
+
+	LPC_GPIOINT->IO2IntClr |=(1<<12);
+
+	// Enable EINT3 interrupt
+	NVIC_EnableIRQ(EINT3_IRQn);
+
+
 }
 
 void configSysTick(){
@@ -119,9 +146,9 @@ void configGPIO(){
 
     // P0.4 hasta P0.11 como Outputs
 	LPC_GPIO0->FIODIRL|=0x0FF0;
-	LPC_GPIO0->FIOSET|=0xFFFF;
+	LPC_GPIO0->FIOSETL|=0xFFFF;
 
-  // P2.0 hasta P0.7 como Outputs
+  // P2.0 hasta P2.7 como Outputs
 	LPC_GPIO2->FIODIRL|=0x00FF;
 	LPC_GPIO2->FIOCLRL|=0xFFFF;
 }
@@ -162,7 +189,7 @@ void configUART(){
 void initGame(){
     // Inicializa la longitud de la vibora y su dirección
     snakeLength = 3;
-    direction = DER;
+    direction = ARRIBA;
 
     snake[0].x = 2; snake[0].y = 4;
     snake[1].x = 1; snake[1].y = 4;
@@ -324,7 +351,10 @@ void TIMER0_IRQHandler(){
     render();
     TIM_ClearIntPending(LPC_TIM0,TIM_MR0_INT);
 }
+void EINT3_IRQHandler(){
+
+	updateDirection(DER,IZQ);
+	LPC_GPIOINT->IO2IntClr|=(1<<12);
 
 
-
-
+}
