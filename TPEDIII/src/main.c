@@ -27,6 +27,10 @@ typedef enum {
     ARRIBA, ABAJO, IZQ, DER
 } Direction;    //Direcciones en la que puede moverse la vibora
 
+typedef enum {
+    EASY, NORMAL, HARD
+} Difficulty;   //Dificultad = Velocidad de actualizacion del movimiento
+
 Point snake[ANCHO * ALTO];  //Arreglo de posiciones ocupadas por la vibora
 uint8_t snakeLength;        //Cantidad de posiciones ocupadas por la vibora
 Point apple;                //Ubicación actual de la manzana a comer
@@ -49,15 +53,11 @@ uint8_t checkCollisions(Point newPos);
 void updateDirection(Direction new, Direction avoid);
 void createNewApple();
 void moveSnake();
-//Chequea y envía los leds a encender a la matriz via I2P
+//Chequea y envía los leds a encender a la matriz
 void render();
-/*  Lee el valor de conversión del ADC y asigna uno de los tres niveles de velocidad
-    de juego seteando el timer principal acordemente
-*/
-void setDifficulty(uint16_t value);
+void setDifficulty(Difficulty difficulty);
 void sendStats();
 void initGame();
-//Detiene el juego, congelando el movimiento de la vibora
 void stopGame();
 void getRandomPair(uint8_t* a, uint8_t* b);
 
@@ -69,26 +69,21 @@ void delay(uint32_t times) {
 int main() {
 
     initGame();
-    //El juego no debería comenzar hasta que el jugador apriete uno de los pulsadores
 
     configButtons();
     configGPIO();
     configSysTick();
     configTimers();
-    render();
+    
+    /*while (1) {}*/ //El juego no debería comenzar hasta que el jugador apriete uno de los pulsadores
 
-    /*while (1) {
-            //moveSnake();
-            //render();
-            //delay(2500);
-    }*/
-
-    NVIC_EnableIRQ(TIMER0_IRQn);
+    //NVIC_EnableIRQ(TIMER0_IRQn);
 
     while (1) {
+        render();
         //moveSnake();
         //render();
-        //delay(2500);
+        delay(500);
     }
 
     return 0;
@@ -306,13 +301,18 @@ void sendStats(){
 }
 
 void render(){
-     actualX=0;
-     actualY=0x00;
-     uint16_t FIOX=0;
-     uint16_t FIOY=0xFFFF;
+    static int i = 0;
+    if(i>=(snakeLength+1)){
+        i=0;
+    }
+    actualX=0;      //Acumulador de flags de las cordenadas en X a encender
+    actualY=0x00;   //Acumulador de flags de las cordenadas en Y a encender
+    uint16_t FIOX=0;        //Acumulador de pines a encender en X
+    uint16_t FIOY=0xFFFF;   //Acumulador de pines a encender en Y
 
+    /*
     actualX |= (1<<apple.x);
-    actualY |= (1<<apple.y);
+    actualY |= (1<<apple.y);    
     for(int i=0;i<snakeLength;i++){
         actualX |= (1<<snake[i].x);
         actualY |= (1<<snake[i].y);
@@ -329,6 +329,25 @@ void render(){
 
     LPC_GPIO2->FIOPINL = FIOX;
     LPC_GPIO0->FIOPINL = FIOY;
+    */
+    
+    if(!i){     //Renderizar posición de la manzana
+        LPC_GPIO2->FIOPINL = X[apple.X];
+        LPC_GPIO0->FIOPINL = Y[apple.Y];
+    } else{
+        LPC_GPIO2->FIOPINL = X[snake[i-1].X];
+        LPC_GPIO0->FIOPINL = Y[snake[i-1].Y];
+    }
+    i++;
+}
+
+/* Detiene el juego, congelando el movimiento de la vibora
+*  - Detiene el timer0 (tick del sistema)
+*  - 
+*/
+void stopGame(){
+    TIM_Cmd(LPC_TIM0,ENABLE);
+    SYSTICK_IntCmd(DISABLE);
 }
 
 //***********************************************
@@ -348,7 +367,7 @@ void SysTick_Handler(){
 
 void TIMER0_IRQHandler(){
     moveSnake();
-    render();
+    //render();
     TIM_ClearIntPending(LPC_TIM0,TIM_MR0_INT);
 }
 void EINT3_IRQHandler(){
