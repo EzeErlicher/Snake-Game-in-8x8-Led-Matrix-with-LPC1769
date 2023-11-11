@@ -54,13 +54,15 @@ uint8_t checkCollisions(Point newPos);
 void updateDirection(Direction new, Direction avoid);
 void createNewApple();
 void moveSnake();
-//Chequea y envía los leds a encender a la matriz
 void render();
 void setDifficulty(Difficulty difficulty);
 void sendStats();
 void initGame();
 void stopGame();
+//Resetea el juego
+void resetGame();
 void getRandomPair(uint8_t* a, uint8_t* b);
+uint8_t uint16_to_uint8Array(uint16_t value, uint8_t *result);
 
 void delay(uint32_t times) {
 	for(uint32_t i=0; i<times; i++)
@@ -69,19 +71,15 @@ void delay(uint32_t times) {
 
 int main() {
 
-    initGame();
-
     configButtons();
     configGPIO();
     configSysTick();
     configTimers();
     configUART();
-
+    initGame();
     /*while (1) {}*/ //El juego no debería comenzar hasta que el jugador apriete uno de los pulsadores
 
     TIM_Cmd(LPC_TIM0,ENABLE);
-
-
     while (1) {
         render();
         //moveSnake();
@@ -106,7 +104,7 @@ void configTimers(){
 	    MatchConfig.ResetOnMatch = ENABLE;
 	    MatchConfig.StopOnMatch = DISABLE;
 	    MatchConfig.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
-	    MatchConfig.MatchValue = 1500;
+	    MatchConfig.MatchValue = 2000;
 	    TIM_ConfigMatch(LPC_TIM0,&MatchConfig);
 
     //Configuro el timer 0 para que interrumpa cada 1ms
@@ -143,7 +141,9 @@ void configButtons(){
 
 void configSysTick(){
     //Configura para que SysTick interrumpa cada 1ms
-    SysTick_Config(SystemCoreClock / 1000);
+    SysTick_Config(SystemCoreClock/1000);
+    SYSTICK_Cmd(ENABLE);
+    SYSTICK_IntCmd(ENABLE);
 }
 
 void configGPIO(){
@@ -297,25 +297,24 @@ void getRandomPair(uint8_t* a, uint8_t* b){
 
 //Se encarga de enviar las estadisticas de la partida a la PC
 void sendStats(){
-    //uint8_t data[] = "Hola mi loco! Acá van los datos de la partida:\n\r";
-    //char data2[75]; //Reservo espacio suficiente para almacenar los datos de la partida como string
-
-    //sprintf(data2, "Cantidad de segundos jugados: %u - Manzanas comidas: %u\n\r", secondsCounter, appleCounter);
-
-    //UART_Send(LPC_UART1, (uint8_t*)data, sizeof(data), BLOCKING);
-    //UART_Send(LPC_UART1, (uint8_t*)data2, sizeof(data2), BLOCKING);
-
-
-	uint8_t info[] = "Hola mundo\t-\tElectronica Digital 3\t-\tFCEFyN-UNC \n\r";
-
-	while(1){
-		UART_Send(LPC_UART1, info, sizeof(info), BLOCKING);
-	}
-
+    uint8_t numbers[4], digits = 0;  //
+    
+    uint8_t data1[] = "Hola mi loco! Acá van los datos de la partida:\n\r";
+    UART_Send(LPC_UART1,data1, sizeof(data1), BLOCKING);
+    char data2[]= "Cantidad de segundos jugados: ";
+    UART_Send(LPC_UART1,(uint8_t *)data2, sizeof(data2), BLOCKING);
+    digits = uint16_to_uint8Array(secondsCounter, numbers);
+    UART_Send(LPC_UART1,(uint8_t *)numbers, digits*sizeof(uint8_t), BLOCKING);
+    char data3[]= " - Manzanas comidas: ";
+    UART_Send(LPC_UART1,(uint8_t *)data3, sizeof(data3), BLOCKING);
+    uint16_to_uint8Array(appleCounter, numbers);
+    UART_Send(LPC_UART1,numbers, digits*sizeof(uint8_t), BLOCKING);
+    UART_Send(LPC_UART1,(uint8_t *)"\n\r\0",3,BLOCKING);
 
     return;
 }
 
+//Chequea y envía los leds a encender a la matriz
 void render(){
     static int i = 0;
     if(i>=(snakeLength+1)){
@@ -325,27 +324,6 @@ void render(){
     actualY=0x00;   //Acumulador de flags de las cordenadas en Y a encender
     uint16_t FIOX=0;        //Acumulador de pines a encender en X
     uint16_t FIOY=0xFFFF;   //Acumulador de pines a encender en Y
-
-    /*
-    actualX |= (1<<apple.x);
-    actualY |= (1<<apple.y);
-    for(int i=0;i<snakeLength;i++){
-        actualX |= (1<<snake[i].x);
-        actualY |= (1<<snake[i].y);
-    }
-
-    for(int i=0;i<8;i++){
-        if(actualX & 1<<i){
-            FIOX |= X[i];
-        }
-        if(actualY & 1<<i){
-            FIOY &= Y[i];
-        }
-    }
-
-    LPC_GPIO2->FIOPINL = FIOX;
-    LPC_GPIO0->FIOPINL = FIOY;
-    */
 
     if(!i){     //Renderizar posición de la manzana
         LPC_GPIO2->FIOPINL = X[apple.x];
@@ -363,9 +341,38 @@ void render(){
 */
 void stopGame(){
     TIM_Cmd(LPC_TIM0,DISABLE);
-    //SYSTICK_IntCmd(DISABLE);
+    SYSTICK_IntCmd(DISABLE);
 }
 
+//Convierte un entero de 16bits a un string
+void uint16ToString(uint16_t value, uint8_t *result);
+// Buffer size based on the maximum number of digits in a uint16_t (5 digits)
+    uint8_t buffer[5];
+
+    // Initialize index
+    int8_t index = 0;
+
+    // Handle the case when the value is 0 separately
+    if (value == 0) {
+        buffer[index++] = '0';
+    } else {
+        // Extract digits in reverse order
+        while (value > 0) {
+            buffer[index++] = '0' + (value % 10);
+            value /= 10;
+        }
+    }
+
+    // Reverse the buffer to get the correct order
+    for (int8_t i = 0; i < index; ++i) {
+        result[i] = buffer[index - 1 - i];
+    }
+
+    // Null-terminate the result
+    result[index] = '\0';
+
+    return index;
+}
 //***********************************************
 //              INTERRUPCIONES
 //***********************************************
@@ -375,14 +382,13 @@ void SysTick_Handler(){
     static uint8_t millisCount = 0;
 	millisCount++;
 
-    if(millisCount >= 1000){
+    if(millisCount >= 100){
 	    secondsCounter++;
 	    millisCount = 0;
 	}
 }
 
 void TIMER0_IRQHandler(){
-	sendStats();
     moveSnake();
     //render();
     TIM_ClearIntPending(LPC_TIM0,TIM_MR0_INT);
@@ -398,7 +404,4 @@ void EINT3_IRQHandler(){
 		updateDirection(DER,IZQ);
 		LPC_GPIOINT->IO2IntClr |=(1<<22);
 	}
-
-
-
 }
