@@ -62,7 +62,7 @@ void stopGame();
 //Resetea el juego
 void resetGame();
 void getRandomPair(uint8_t* a, uint8_t* b);
-uint8_t uint16_to_uint8Array(uint16_t value, uint8_t *result);
+void uint16_to_uint8Array(uint16_t value, uint8_t *result);
 
 void delay(uint32_t times) {
 	for(uint32_t i=0; i<times; i++)
@@ -303,12 +303,12 @@ void sendStats(){
     UART_Send(LPC_UART1,data1, sizeof(data1), BLOCKING);
     char data2[]= "Cantidad de segundos jugados: ";
     UART_Send(LPC_UART1,(uint8_t *)data2, sizeof(data2), BLOCKING);
-    digits = uint16_to_uint8Array(secondsCounter, numbers);
-    UART_Send(LPC_UART1,(uint8_t *)numbers, digits*sizeof(uint8_t), BLOCKING);
+    uint16_to_uint8Array(secondsCounter, numbers);
+    UART_Send(LPC_UART1,(uint8_t *)numbers, sizeof(numbers), BLOCKING);
     char data3[]= " - Manzanas comidas: ";
     UART_Send(LPC_UART1,(uint8_t *)data3, sizeof(data3), BLOCKING);
     uint16_to_uint8Array(appleCounter, numbers);
-    UART_Send(LPC_UART1,numbers, digits*sizeof(uint8_t), BLOCKING);
+    UART_Send(LPC_UART1,numbers, sizeof(numbers), BLOCKING);
     UART_Send(LPC_UART1,(uint8_t *)"\n\r\0",3,BLOCKING);
 
     return;
@@ -345,7 +345,7 @@ void stopGame(){
 }
 
 //Convierte un entero de 16bits a un string
-void uint16ToString(uint16_t value, uint8_t *result);
+void uint16_to_uint8Array(uint16_t value, uint8_t *result){
 // Buffer size based on the maximum number of digits in a uint16_t (5 digits)
     uint8_t buffer[5];
 
