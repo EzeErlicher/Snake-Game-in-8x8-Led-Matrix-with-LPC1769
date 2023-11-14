@@ -1,38 +1,90 @@
-/*
- * Copyright 2022 NXP
- * NXP confidential.
- * This software is owned or controlled by NXP and may only be used strictly
- * in accordance with the applicable license terms.  By expressly accepting
- * such terms or by downloading, installing, activating and/or otherwise using
- * the software, you are agreeing that you have read, and that you agree to
- * comply with and are bound by, such license terms.  If you do not agree to
- * be bound by the applicable license terms, then you may not retain, install,
- * activate or otherwise use the software.
- */
-
-#ifdef __USE_CMSIS
-#include "LPC17xx.h"
-#include "lpc17xx_timer.h"
+#include <LPC17xx.h>
 #include "lpc17xx_adc.h"
-#include "lpc17xx_dac.h"
-#include "lpc17xx_gpdma.h"
-#include "lpc17xx_uart.h"
-#endif
+#include "lpc17xx_timer.h"
+#include "lpc17xx_pinsel.h"
 
-#include <cr_section_macros.h>
+#define HARD_MAX    1300
+#define NORMAL_MAX  2795
 
-// TODO: insert other include files here
+#define TIMER_EASY   2500
+#define TIMER_NORMAL 1500
+#define TIMER_HARD   800
 
-// TODO: insert other definitions and declarations here
+volatile uint16_t adcValue = 0;
 
-int main(void) {
+void configADC();        // Potenciometro para regular velocidad de juego
+void configTimer();     //  Timer asociado al ADC
+void stopGame();
 
+int main(){
+    configADC();
+    configTimer();
+    ADC_StartCmd(LPC_ADC, ADC_START_NOW); //Hago una conversión antes de arrancar el juego
+    while(1){}
+    return 0;
+}
 
-	int mark=9;
+void configADC(){
+    PINSEL_CFG_Type PinCfg;
+	PinCfg.Funcnum = 1;
+	PinCfg.OpenDrain = 0;
+	PinCfg.Pinmode = 0;         //Sin pull-up ni pull-down
+	PinCfg.Pinnum = 23;
+	PinCfg.Portnum = 0;
+	PINSEL_ConfigPin(&PinCfg);  //P0.23 como AD0.0
 
-    while(1) {
+    ADC_Init(LPC_ADC, 200000);                       //Frec. de muestreo = 200kHz
+	ADC_IntConfig(LPC_ADC,ADC_ADINTEN0,ENABLE);      //Habilito interrupción canal 0
+	ADC_ChannelCmd(LPC_ADC,ADC_CHANNEL_0,ENABLE);    //Habilito canal
+    NVIC_EnableIRQ(ADC_IRQn);                        //Habilito interrupción del ADC
+    ADC_EdgeStartConfig(LPC_ADC,ADC_START_ON_RISING);//Selecciono los flancos de subida para iniciar la conversión
+    ADC_StartCmd(LPC_ADC, ADC_START_ON_MAT10);       //Habilito la conversión por el Match 1.0
+}
 
+void configTimer(){
+    //Usamos el Match 1.0 para comenzar la conversión del ADC en los flancos de subida
+    //No hace falta cambiar el PINSEL
 
-    }
-    return 0 ;
+    TIM_TIMERCFG_Type TIMConfigStruct;
+    TIMConfigStruct.PrescaleOption = TIM_PRESCALE_USVAL;
+    TIMConfigStruct.PrescaleValue = 500000;
+    TIM_Init(LPC_TIM1, TIM_TIMER_MODE, &TIMConfigStruct); //Configuro el preescaler del timer 1 cada 500ms
+
+    //Configuro el Match 1.0 para hacer un toggle cada 1seg
+    TIM_MATCHCFG_Type MatchConfig;
+	MatchConfig.MatchChannel = 0;
+	MatchConfig.IntOnMatch = DISABLE;
+	MatchConfig.ResetOnMatch = ENABLE;
+	MatchConfig.StopOnMatch = DISABLE;
+	MatchConfig.ExtMatchOutputType = TIM_EXTMATCH_TOGGLE;
+	MatchConfig.MatchValue = 1;
+	TIM_ConfigMatch(LPC_TIM1,&MatchConfig);
+
+    TIM_Cmd(LPC_TIM1,ENABLE);
+}
+
+void ADC_IRQHandler(){
+    //volatile uint16_t adcValue = 0; //Uso variable local, no hay necesidad de tenerla como global
+	//adcValue=0;
+	if (ADC_ChannelGetStatus(LPC_ADC,ADC_CHANNEL_0,ADC_DATA_DONE)){
+		adcValue =  ADC_ChannelGetData(LPC_ADC,ADC_CHANNEL_0);
+	}
+	//adcValue=0;
+
+    //uint8_t volts = (result*VREF)/4096.0; //Convert result to Voltage
+
+    //A menor valor en la medición, mayor es la resistencia del potenciometro
+    //Escala de mediociones del ADC: 0--(Zona dificil)--HARD_MAX--(Zona normal)--NORMAL_MAX--(Zona facil)--4095
+/*
+    if(adcValue>NORMAL_MAX){        //El potenciometro está cerca de su valor minimo
+        TIM_UpdateMatchValue(TIMER_HARD);
+    } else if(adcValue>HARD_MAX){   //El potenciometro está en un valor intermedio
+        TIM_UpdateMatchValue(TIMER_NORMAL);
+    } else{                         //El potenciometro está cerca de su valor maximo
+        TIM_UpdateMatchValue(TIMER_EASY);
+    }*/
+}
+
+void stopGame(){
+    TIM_Cmd(LPC_TIM1,DISABLE);
 }
