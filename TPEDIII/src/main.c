@@ -88,10 +88,11 @@ int main() {
     configSysTick();
     configADC();
     configTimers();
+    ADC_StartCmd(LPC_ADC,ADC_START_NOW);
     configUART();
-    initGame();
     configDAC();
     configDMA_DAC_Channel();
+    initGame();
     /*while (1) {}*/ //El juego no debería comenzar hasta que el jugador apriete uno de los pulsadores
 
     TIM_Cmd(LPC_TIM0,ENABLE);
@@ -108,7 +109,6 @@ int main() {
 //***********************************************
 //              CONFIGURACIONES
 //***********************************************
-
 
 void configTimers(){
 	TIM_MATCHCFG_Type MatchConfig;
@@ -127,7 +127,7 @@ void configTimers(){
     TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &TIMConfigStruct);
 
     //TIM_Cmd(LPC_TIM0,ENABLE);         //No lo prendo aún
-    /*************************************************/
+    /*************************************************
     TIM_TIMERCFG_Type TIMConfigStruct2;
         TIMConfigStruct2.PrescaleOption = TIM_PRESCALE_USVAL;
         TIMConfigStruct2.PrescaleValue = 500000;
@@ -145,7 +145,7 @@ void configTimers(){
     	NVIC_EnableIRQ(TIMER1_IRQn);
 
         TIM_Cmd(LPC_TIM1,ENABLE);
-
+    */
     NVIC_EnableIRQ(TIMER0_IRQn);
 
 }
@@ -210,7 +210,6 @@ void configUART(){
 }
 
 void configDAC(){
-
 	PINSEL_CFG_Type pinCfg;
 	pinCfg.Funcnum = 2;
 	pinCfg.OpenDrain = 0;
