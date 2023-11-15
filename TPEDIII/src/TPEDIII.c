@@ -3,8 +3,8 @@
 #include "lpc17xx_timer.h"
 #include "lpc17xx_pinsel.h"
 
-#define HARD_MAX    1300
-#define NORMAL_MAX  2795
+#define HARD_MAX    1800
+#define NORMAL_MAX  3000
 
 #define TIMER_EASY   2500
 #define TIMER_NORMAL 1500
@@ -19,7 +19,7 @@ void stopGame();
 int main(){
     configADC();
     configTimer();
-    ADC_StartCmd(LPC_ADC, ADC_START_NOW); //Hago una conversión antes de arrancar el juego
+    //ADC_StartCmd(LPC_ADC, ADC_START_NOW); //Hago una conversión antes de arrancar el juego
     while(1){}
     return 0;
 }
@@ -38,7 +38,7 @@ void configADC(){
 	ADC_ChannelCmd(LPC_ADC,ADC_CHANNEL_0,ENABLE);    //Habilito canal
     NVIC_EnableIRQ(ADC_IRQn);                        //Habilito interrupción del ADC
     ADC_EdgeStartConfig(LPC_ADC,ADC_START_ON_RISING);//Selecciono los flancos de subida para iniciar la conversión
-    ADC_StartCmd(LPC_ADC, ADC_START_ON_MAT10);       //Habilito la conversión por el Match 1.0
+    //ADC_StartCmd(LPC_ADC, ADC_START_ON_MAT10);       //Habilito la conversión por el Match 1.0
 }
 
 void configTimer(){
@@ -53,38 +53,48 @@ void configTimer(){
     //Configuro el Match 1.0 para hacer un toggle cada 1seg
     TIM_MATCHCFG_Type MatchConfig;
 	MatchConfig.MatchChannel = 0;
-	MatchConfig.IntOnMatch = DISABLE;
+	MatchConfig.IntOnMatch = ENABLE;
 	MatchConfig.ResetOnMatch = ENABLE;
 	MatchConfig.StopOnMatch = DISABLE;
 	MatchConfig.ExtMatchOutputType = TIM_EXTMATCH_TOGGLE;
-	MatchConfig.MatchValue = 1;
+	MatchConfig.MatchValue = 10;
 	TIM_ConfigMatch(LPC_TIM1,&MatchConfig);
+	NVIC_EnableIRQ(TIMER1_IRQn);
 
     TIM_Cmd(LPC_TIM1,ENABLE);
 }
 
 void ADC_IRQHandler(){
     //volatile uint16_t adcValue = 0; //Uso variable local, no hay necesidad de tenerla como global
-	//adcValue=0;
-	if (ADC_ChannelGetStatus(LPC_ADC,ADC_CHANNEL_0,ADC_DATA_DONE)){
+	adcValue = 0;
+    if (ADC_ChannelGetStatus(LPC_ADC,ADC_CHANNEL_0,ADC_DATA_DONE)){
 		adcValue =  ADC_ChannelGetData(LPC_ADC,ADC_CHANNEL_0);
 	}
-	//adcValue=0;
-
-    //uint8_t volts = (result*VREF)/4096.0; //Convert result to Voltage
 
     //A menor valor en la medición, mayor es la resistencia del potenciometro
     //Escala de mediociones del ADC: 0--(Zona dificil)--HARD_MAX--(Zona normal)--NORMAL_MAX--(Zona facil)--4095
-/*
+
     if(adcValue>NORMAL_MAX){        //El potenciometro está cerca de su valor minimo
-        TIM_UpdateMatchValue(TIMER_HARD);
+        TIM_UpdateMatchValue(LPC_TIM0,0,TIMER_HARD);
     } else if(adcValue>HARD_MAX){   //El potenciometro está en un valor intermedio
-        TIM_UpdateMatchValue(TIMER_NORMAL);
+        TIM_UpdateMatchValue(LPC_TIM0,0,TIMER_NORMAL);
     } else{                         //El potenciometro está cerca de su valor maximo
-        TIM_UpdateMatchValue(TIMER_EASY);
-    }*/
+        TIM_UpdateMatchValue(LPC_TIM0,0,TIMER_EASY);
+    }
+
+    LPC_ADC->ADGDR &= LPC_ADC->ADGDR;
+
+
+}
+
+void TIMER1_IRQHandler(){
+
+	ADC_StartCmd(LPC_ADC, ADC_START_NOW);
+
+	TIM_ClearIntPending(LPC_TIM1,TIM_MR0_INT);
 }
 
 void stopGame(){
     TIM_Cmd(LPC_TIM1,DISABLE);
+    NVIC_DisableIRQ(ADC_IRQn);
 }
