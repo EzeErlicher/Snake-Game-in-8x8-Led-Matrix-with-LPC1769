@@ -20,11 +20,10 @@
 #define TIMER_NORMAL 1000
 #define TIMER_HARD   500
 
-#define DMA_SIZE 60
+#define samplesAmount 60
 #define NUM_SINE_SAMPLE 60
-#define SINE_FREQ_IN_HZ 100
+#define SINE_FREQ_IN_HZ 400
 #define PCLK_DAC_IN_MHZ 25
-
 
 uint16_t secondsCounter = 0;
 volatile uint16_t adcValue = 0;
@@ -49,7 +48,8 @@ uint8_t appleCounter = 0;   //Cantidad de manzanas ya comidas
 void configButtons(); // Interrupciones Externas
 void configTimers();     // Tick para mover la vibora
 void configADC();        // Potenciometro para regular velocidad de juego
-void configDAC();        // Salida de sonido para WIN/GameOver
+void configDAC();            // Salida de sonido para WIN/GameOver
+void configDMA_DAC_Channel();
 void configGPIO();       // Matriz Led
 void configUART();       // Envio de estadisticas
 void configSysTick();    // Obtención de seeds para generar random
@@ -73,20 +73,25 @@ void delay(uint32_t times) {
 		for(uint32_t j=0; j<times; j++);
 }
 
+uint32_t sinSamples[NUM_SINE_SAMPLE] = {511, 564, 617, 669, 719, 767, 812, 853, 891, 925, 954, 978, 997, 1011, 1020, 1023,
+							   1020, 1011, 997, 978, 954, 925, 891, 853, 812, 767, 719, 669, 617, 564, 511, 458,
+							   405, 353, 303, 255, 210, 169, 131, 97, 68, 44, 25, 11, 2, 0, 2, 11, 25, 44, 68,
+							   97, 131, 169, 210, 255, 303, 353, 405, 458};
+
 int main() {
 
-<<<<<<< HEAD
 	for(uint8_t index = 0; index<NUM_SINE_SAMPLE; index++)
 			sinSamples[index] = sinSamples[index]<<6;
 
 	configButtons();
-
     configGPIO();
     configSysTick();
     configADC();
     configTimers();
     ADC_StartCmd(LPC_ADC,ADC_START_NOW);
     configUART();
+    //configDAC();
+    //configDMA_DAC_Channel();
     initGame();
     /*while (1) {}*/ //El juego no debería comenzar hasta que el jugador apriete uno de los pulsadores
 
@@ -95,7 +100,7 @@ int main() {
         render();
         //moveSnake();
         //render();
-        delay(180);
+        delay(100);
     }
 
     return 0;
@@ -105,19 +110,17 @@ int main() {
 //              CONFIGURACIONES
 //***********************************************
 
-
-
 void configTimers(){
 	TIM_MATCHCFG_Type MatchConfig;
-	    MatchConfig.MatchChannel = 0;
-	    MatchConfig.IntOnMatch = ENABLE;
-	    MatchConfig.ResetOnMatch = ENABLE;
-	    MatchConfig.StopOnMatch = DISABLE;
-	    MatchConfig.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
-	    MatchConfig.MatchValue = 2000;
-	    TIM_ConfigMatch(LPC_TIM0,&MatchConfig);
+	MatchConfig.MatchChannel = 0;
+	MatchConfig.IntOnMatch = ENABLE;
+	MatchConfig.ResetOnMatch = ENABLE;
+	MatchConfig.StopOnMatch = DISABLE;
+	MatchConfig.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
+	MatchConfig.MatchValue = 2000;
+	TIM_ConfigMatch(LPC_TIM0,&MatchConfig);
 
-    //Configuro el timer 0 para que interrumpa cada 1ms
+    //Configura el prescaler para que incremente el contador cada 1ms
     TIM_TIMERCFG_Type TIMConfigStruct;
     TIMConfigStruct.PrescaleOption = TIM_PRESCALE_USVAL;
     TIMConfigStruct.PrescaleValue = 1000;
@@ -148,49 +151,26 @@ void configTimers(){
 }
 
 void configButtons(){
-<<<<<<< HEAD
-    /*
+
 	LPC_PINCON->PINMODE0|=(3<<0);
 	LPC_PINCON->PINMODE0|=(3<<2);
 	LPC_PINCON->PINMODE0|=(3<<4);
 	LPC_PINCON->PINMODE0|=(3<<6);
 
-	LPC_PINCON->PINMODE4|=(3<<26);  // botón de restart
+	//LPC_PINCON->PINMODE4|=(3<<26);
+	LPC_PINCON->PINMODE1|=(3<<12);
 
 	// Enable rising edge interrupt for pin
 	LPC_GPIOINT->IO0IntEnR |=0x0000000F;
-	LPC_GPIOINT->IO2IntEnR |=(1<<13);
+	LPC_GPIOINT->IO0IntEnR |=(1<<22);
+	//LPC_GPIOINT->IO2IntEnR |=(1<<13);
 
 	LPC_GPIOINT->IO0IntClr |=0x0000000F;
-	LPC_GPIOINT->IO2IntClr |=(1<<13);
-|   */
-    PINSEL_CFG_Type pinCfg;
-	pinCfg.Funcnum = 0;
-	pinCfg.OpenDrain = PINSEL_PINMODE_NORMAL;
-	pinCfg.Pinmode = 0;
-	pinCfg.Portnum = 0;
-	pinCfg.Pinnum = 0;
-	PINSEL_ConfigPin(&pinCfg); //P0.0   -
-    pinCfg.Pinnum = 1;
-	PINSEL_ConfigPin(&pinCfg); //P0.1   -
-    pinCfg.Pinnum = 2;
-	PINSEL_ConfigPin(&pinCfg); //P0.2   -
-    pinCfg.Pinnum = 3;
-	PINSEL_ConfigPin(&pinCfg); //P0.3   -
-    pinCfg.Portnum = 2;
-	pinCfg.Pinnum = 13;
-	PINSEL_ConfigPin(&pinCfg); //P2.13  - Boton de Start/Restart
+	LPC_GPIOINT->IO0IntClr |=(1<<22);
+	//LPC_GPIOINT->IO2IntClr |=(1<<13);
 
-    GPIO_IntCmd(0,0xF,0);       //Habilito las interrupciones de P0.0 a P0.3 por flanco de subida
-    GPIO_ClearInt(0,0xF);       //Limpio las flags de P0.0 a P0.3
-    GPIO_IntCmd(2,(1<<13),0);   //Habilito las interrupciones de P2.13 por flanco de subida
-    GPIO_ClearInt(2,(1<<13));   //Limpio las flags de P2.13
-
-    // Enable EINT3 interrupt
-
+	// Enable EINT3 interrupt
 	NVIC_EnableIRQ(EINT3_IRQn);
-
-
 }
 
 void configSysTick(){
@@ -236,7 +216,6 @@ void configUART(){
 	UART_TxCmd(LPC_UART1, ENABLE);
 }
 
-
 void configDAC(){
 	PINSEL_CFG_Type pinCfg;
 	pinCfg.Funcnum = 2;
@@ -263,18 +242,17 @@ void configDMA_DAC_Channel(){
 	LLI1.SrcAddr = (uint32_t) sinSamples;
 	LLI1.DstAddr = (uint32_t) &LPC_DAC->DACR;
 	LLI1.NextLLI = (uint32_t) &LLI1;
-	LLI1.Control = DMA_SIZE
-					   | (2<<18) //source width 32 bits
-					   | (2<<21) //dest width 32 bits
-					   | (1<<26); //source increment
+	LLI1.Control = samplesAmount | (1<<19)  | (1<<22) | (1<<26);
 
+
+	//source width 32 bits dest width 32 bits source increment
 	GPDMA_Init();
 
 	GPDMA_Channel_CFG_Type GPDMACfg;
 	GPDMACfg.ChannelNum = 0;
 	GPDMACfg.SrcMemAddr = (uint32_t)sinSamples;
 	GPDMACfg.DstMemAddr = 0;
-	GPDMACfg.TransferSize = DMA_SIZE;
+	GPDMACfg.TransferSize = samplesAmount;
 	GPDMACfg.TransferWidth = 0;
 	GPDMACfg.TransferType = GPDMA_TRANSFERTYPE_M2P;
 	GPDMACfg.SrcConn = 0;
@@ -293,7 +271,6 @@ void configADC(){
 	PinCfg.Pinnum = 23;
 	PinCfg.Portnum = 0;
 	PINSEL_ConfigPin(&PinCfg);  //P0.23 como AD0.0
-
 
     ADC_Init(LPC_ADC, 200000);                       //Frec. de muestreo = 200kHz
 	ADC_IntConfig(LPC_ADC,ADC_ADINTEN0,ENABLE);      //Habilito interrupción canal 0
@@ -343,6 +320,8 @@ void moveSnake(){
         stopGame();
         //Sonido de GameOver
         sendStats();
+        configDAC();            // Salida de sonido para WIN/GameOver
+        configDMA_DAC_Channel();
     }
 }
 
@@ -417,7 +396,7 @@ void getRandomPair(uint8_t* a, uint8_t* b){
 //Se encarga de enviar las estadisticas de la partida a la PC
 void sendStats(){
     uint8_t numbers[4], digits = 0;  //
-    
+
     uint8_t data1[] = "Hola mi loco! Acá van los datos de la partida:\n\r";
     UART_Send(LPC_UART1,data1, sizeof(data1), BLOCKING);
     char data2[]= "Cantidad de segundos jugados: ";
@@ -466,8 +445,6 @@ void stopGame(){
     SYSTICK_Cmd(DISABLE);
     TIM_Cmd(LPC_TIM1,DISABLE);
     NVIC_DisableIRQ(ADC_IRQn);
-
-
 }
 
 //Convierte un entero de 16bits a un string
@@ -521,46 +498,32 @@ void TIMER0_IRQHandler(){
 }
 
 void EINT3_IRQHandler(){
-
-
 	//ARRIBA
-	//if((LPC_GPIOINT->IO0IntStatR)&(1<<0)){
-    if(GPIO_GetIntStatus(0,0,0)){
-	    updateDirection(DER,IZQ);
-		//LPC_GPIOINT->IO0IntClr |=(1<<0);
-        GPIO_ClearInt(0,1);
-	}
+		if((LPC_GPIOINT->IO0IntStatR)&(1<<0)){
+			updateDirection(DER,IZQ);
+			LPC_GPIOINT->IO0IntClr |=(1<<0);
+		}
 
-	//DERECHA
-	//else if((LPC_GPIOINT->IO0IntStatR)&(1<<1)){
-    else if(GPIO_GetIntStatus(0,1,0)){
-		updateDirection(ARRIBA,ABAJO);
-		//LPC_GPIOINT->IO0IntClr |=(1<<1);
-        GPIO_ClearInt(0,(1<<1));
-	}
+		//DERECHA
+		else if((LPC_GPIOINT->IO0IntStatR)&(1<<1)){
+			updateDirection(ARRIBA,ABAJO);
+			LPC_GPIOINT->IO0IntClr |=(1<<1);
+		}
 
-	//IZQUIERDA
-	//else if((LPC_GPIOINT->IO0IntStatR)&(1<<2)){
-    else if(GPIO_GetIntStatus(0,2,0)){			
-       	updateDirection(ABAJO,ARRIBA);
-		//LPC_GPIOINT->IO0IntClr |=(1<<2);
-        GPIO_ClearInt(0,(1<<2));
-	}
+		//IZQUIERDA
+		else if((LPC_GPIOINT->IO0IntStatR)&(1<<2)){
+			updateDirection(ABAJO,ARRIBA);
+			LPC_GPIOINT->IO0IntClr |=(1<<2);
+		}
 
-	//ABAJO
-	//else if((LPC_GPIOINT->IO0IntStatR)&(1<<3)){
-    else if(GPIO_GetIntStatus(0,3,0)){
-		updateDirection(IZQ,DER);
-		//GPDMA_ChannelCmd(0,DISABLE);
-		//LPC_GPIOINT->IO0IntClr |=(1<<3);
-            GPIO_ClearInt(0,(1<<3));
-	}
-
-	// Llamar rutina de resetGame
-	else{
-		//LPC_GPIOINT->IO2IntClr |=(1<<13);
-        GPIO_ClearInt(2,(1<<13));
-	}
+		//ABAJO
+		else if((LPC_GPIOINT->IO0IntStatR)&(1<<3)){
+			updateDirection(IZQ,DER);
+			LPC_GPIOINT->IO0IntClr |=(1<<3);
+		}
+		else{
+			LPC_GPIOINT->IO0IntClr |=(1<<22);
+		}
 }
 
 void ADC_IRQHandler(){
@@ -589,15 +552,4 @@ void TIMER1_IRQHandler(){
     NVIC_EnableIRQ(ADC_IRQn);
 	ADC_StartCmd(LPC_ADC, ADC_START_NOW);
 	TIM_ClearIntPending(LPC_TIM1,TIM_MR0_INT);
-
-	if((LPC_GPIOINT->IntStatus)&(1<<21)){
-		//updateDirection(DER,IZQ);
-		LPC_GPIOINT->IO2IntClr |=(1<<21);
-	}
-	else if((LPC_GPIOINT->IntStatus)&(1<<22)){
-
-		updateDirection(DER,IZQ);
-		LPC_GPIOINT->IO2IntClr |=(1<<22);
-	}
-
 }
