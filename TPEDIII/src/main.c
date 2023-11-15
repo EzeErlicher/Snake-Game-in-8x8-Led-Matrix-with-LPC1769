@@ -16,9 +16,9 @@
 #define HARD_MAX    1800
 #define NORMAL_MAX  3000
 
-#define TIMER_EASY   2500
-#define TIMER_NORMAL 1500
-#define TIMER_HARD   800
+#define TIMER_EASY   1200
+#define TIMER_NORMAL 1000
+#define TIMER_HARD   500
 
 #define DMA_SIZE 60
 #define NUM_SINE_SAMPLE 60
@@ -83,9 +83,10 @@ int main() {
 	for(uint8_t index = 0; index<NUM_SINE_SAMPLE; index++)
 			sinSamples[index] = sinSamples[index]<<6;
 
-    configButtons();
+	configButtons();
     configGPIO();
     configSysTick();
+    configADC();
     configTimers();
     configUART();
     initGame();
@@ -124,27 +125,28 @@ void configTimers(){
     TIMConfigStruct.PrescaleOption = TIM_PRESCALE_USVAL;
     TIMConfigStruct.PrescaleValue = 1000;
     TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &TIMConfigStruct);
-    NVIC_EnableIRQ(TIMER0_IRQn);
+
     //TIM_Cmd(LPC_TIM0,ENABLE);         //No lo prendo aún
     /*************************************************/
+    TIM_TIMERCFG_Type TIMConfigStruct2;
+        TIMConfigStruct2.PrescaleOption = TIM_PRESCALE_USVAL;
+        TIMConfigStruct2.PrescaleValue = 500000;
+        TIM_Init(LPC_TIM1, TIM_TIMER_MODE, &TIMConfigStruct2); //Configuro el preescaler del timer 1 cada 500ms
 
-    //Usamos el Match 1.0 para iniciar la conversión del ADC en cada interrupción
-    TIM_TIMERCFG_Type TIMConfigStruct;
-    TIMConfigStruct.PrescaleOption = TIM_PRESCALE_USVAL;
-    TIMConfigStruct.PrescaleValue = 500000;
-    TIM_Init(LPC_TIM1, TIM_TIMER_MODE, &TIMConfigStruct); //Configuro el preescaler del timer 1 cada 500ms
+        //Configuro el Match 1.0 para hacer un toggle cada 1seg
+        TIM_MATCHCFG_Type MatchConfig2;
+    	MatchConfig2.MatchChannel = 0;
+    	MatchConfig2.IntOnMatch = ENABLE;
+    	MatchConfig2.ResetOnMatch = ENABLE;
+    	MatchConfig2.StopOnMatch = DISABLE;
+    	MatchConfig2.ExtMatchOutputType = TIM_EXTMATCH_TOGGLE;
+    	MatchConfig2.MatchValue = 20;
+    	TIM_ConfigMatch(LPC_TIM1,&MatchConfig2);
+    	NVIC_EnableIRQ(TIMER1_IRQn);
 
-    //Configuro el Match 1.0 para hacer un toggle cada 1seg
-    TIM_MATCHCFG_Type MatchConfig;
-	MatchConfig.MatchChannel = 0;
-	MatchConfig.IntOnMatch = ENABLE;
-	MatchConfig.ResetOnMatch = ENABLE;
-	MatchConfig.StopOnMatch = DISABLE;
-	MatchConfig.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
-	MatchConfig.MatchValue = 10;
-	TIM_ConfigMatch(LPC_TIM1,&MatchConfig);
-	NVIC_EnableIRQ(TIMER1_IRQn);
-    TIM_Cmd(LPC_TIM1,ENABLE);
+        TIM_Cmd(LPC_TIM1,ENABLE);
+
+    NVIC_EnableIRQ(TIMER0_IRQn);
 
 }
 
@@ -528,16 +530,18 @@ void ADC_IRQHandler(){
 
     if(adcValue>NORMAL_MAX){        //El potenciometro está cerca de su valor minimo
         TIM_UpdateMatchValue(LPC_TIM0,0,TIMER_HARD);
-    } else if(adcValue>HARD_MAX){   //El potenciometro está en un valor intermedio
-        TIM_UpdateMatchValue(LPC_TIM0,0,TIMER_NORMAL);
+    //} else if(adcValue>HARD_MAX){   //El potenciometro está en un valor intermedio
+       // TIM_UpdateMatchValue(LPC_TIM0,0,TIMER_NORMAL);
     } else{                         //El potenciometro está cerca de su valor maximo
         TIM_UpdateMatchValue(LPC_TIM0,0,TIMER_EASY);
     }
 
     LPC_ADC->ADGDR &= LPC_ADC->ADGDR;
+    NVIC_DisableIRQ(ADC_IRQn);
 }
 
 void TIMER1_IRQHandler(){
+    NVIC_EnableIRQ(ADC_IRQn);
 	ADC_StartCmd(LPC_ADC, ADC_START_NOW);
 	TIM_ClearIntPending(LPC_TIM1,TIM_MR0_INT);
 }
