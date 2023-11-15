@@ -25,9 +25,6 @@
 #define SINE_FREQ_IN_HZ 400
 #define PCLK_DAC_IN_MHZ 25
 
-uint16_t secondsCounter;
-__IO uint32_t adcValue;
-
 typedef struct {
     uint8_t x, y;
 } Point;        //Ubicaciones dentro de la matriz 8x8
@@ -36,22 +33,26 @@ typedef enum {
     ARRIBA, ABAJO, IZQ, DER
 } Direction;    //Direcciones en la que puede moverse la vibora
 
-Point snake[ANCHO * ALTO];  //Arreglo de posiciones ocupadas por la vibora
-uint8_t snakeLength;        //Cantidad de posiciones ocupadas por la vibora
-Point apple;                //Ubicación actual de la manzana a comer
-Direction direction;        //Direccion actual en la que se mueve la vibora
-uint8_t appleCounter = 0;   //Cantidad de manzanas ya comidas
+typedef enum {
+    EASY, NORMAL, HARD
+} Difficulty;
 
+Point snake[ANCHO * ALTO];  // Arreglo de posiciones ocupadas por la vibora
+uint8_t snakeLength;        // Cantidad de posiciones ocupadas por la vibora
+Point apple;                // Ubicación actual de la manzana a comer
+Direction direction;        // Direccion actual en la que se mueve la vibora
+uint8_t appleCounter = 0;   // Cantidad de manzanas ya comidas
+uint16_t secondsCounter;    // Duración de la partida en segundos
+Difficulty difficulty;      // Dificultad actual de la partida
 
-void configButtons(); // Interrupciones Externas
-void configTimers();     // Tick para mover la vibora
-void configADC();        // Potenciometro para regular velocidad de juego
-void configDAC();            // Salida de sonido para WIN/GameOver
-void configDMA_DAC_Channel();
-void configGPIO();       // Matriz Led
-void configUART();       // Envio de estadisticas
-void configSysTick();    // Obtención de seeds para generar random
-
+void configButtons();        // Interrupciones Externas
+void configTimers();         // Tick para mover la vibora
+void configADC();            // Potenciometro para regular velocidad de juego
+void configDAC();            //
+void configDMA_DAC_Channel();//
+void configGPIO();           // Matriz Led
+void configUART();           // Envio de estadisticas
+void configSysTick();        // Obtención de seeds para generar random
 
 uint8_t checkCollisions(Point newPos);
 void updateDirection(Direction new, Direction avoid);
@@ -362,25 +363,32 @@ void getRandomPair(uint8_t* a, uint8_t* b){
 void sendStats(){
     static uint8_t	gameCounter = 0;
     gameCounter++;
-	uint8_t numbers[4];
+	uint8_t numbers[4]; //Buffer para el array de digitos
 
     uint8_t data0[] = "\n\rHola mi loco! Acá van las estadisticas:\n\r";
     UART_Send(LPC_UART1,data0, sizeof(data0), BLOCKING);
-    uint8_t data1[] = "	Numero de partida: ";
+    uint8_t data1[] = "	ID de partida: ";
     UART_Send(LPC_UART1,data1, sizeof(data1), BLOCKING);
     uint16_to_uint8Array(gameCounter, numbers);
     UART_Send(LPC_UART1,(uint8_t *)numbers, sizeof(numbers), BLOCKING);
-    char data2[]= "\n\r	Cantidad de segundos jugados: ";
-    UART_Send(LPC_UART1,(uint8_t *)data2, sizeof(data2), BLOCKING);
+    uint8_t data2[] = "\n\r	Dificultad seleccionada: ";
+    UART_Send(LPC_UART1,data2, sizeof(data2), BLOCKING);
+    if(difficulty==EASY){
+        UART_Send(LPC_UART1,(uint8_t *)"FACIL",5,BLOCKING);
+    } else if(difficulty==NORMAL){
+        UART_Send(LPC_UART1,(uint8_t *)"NORMAL",6,BLOCKING);
+    } else{
+        UART_Send(LPC_UART1,(uint8_t *)"DIFICIL",7,BLOCKING);
+    }
+    char data3[]= "\n\r	Duración de la partida en segundos: ";
+    UART_Send(LPC_UART1,data3, sizeof(data3), BLOCKING);
     uint16_to_uint8Array(secondsCounter, numbers);
     UART_Send(LPC_UART1,(uint8_t *)numbers, sizeof(numbers), BLOCKING);
-    char data3[]= "\n\r	Manzanas comidas: ";
-    UART_Send(LPC_UART1,(uint8_t *)data3, sizeof(data3), BLOCKING);
+    char data4[]= "\n\r	Manzanas comidas: ";
+    UART_Send(LPC_UART1,(uint8_t *)data4, sizeof(data4), BLOCKING);
     uint16_to_uint8Array(appleCounter, numbers);
     UART_Send(LPC_UART1,numbers, sizeof(numbers), BLOCKING);
     UART_Send(LPC_UART1,(uint8_t *)"\n\r\0",3,BLOCKING);
-
-    return;
 }
 
 //Chequea y envía los leds a encender a la matriz
@@ -491,8 +499,7 @@ void EINT3_IRQHandler(){
 }
 
 void ADC_IRQHandler(){
-    //volatile uint16_t adcValue = 0; //Uso variable local, no hay necesidad de tenerla como global
-	adcValue = 0;
+    __IO uint32_t adcValue = 0; //Uso variable local, no hay necesidad de tenerla como global
     if (ADC_ChannelGetStatus(LPC_ADC,ADC_CHANNEL_0,ADC_DATA_DONE)){ //Leo el valor de connversión en el canal 0
 		adcValue =  ADC_ChannelGetData(LPC_ADC,ADC_CHANNEL_0);
 	    NVIC_DisableIRQ(ADC_IRQn);
@@ -503,10 +510,13 @@ void ADC_IRQHandler(){
 
     if(adcValue>HARD_MAX){        //El potenciometro está cerca de su valor minimo
         TIM_UpdateMatchValue(LPC_TIM0,0,TIMER_HARD);
+        difficulty = HARD;
     } else if(adcValue>NORMAL_MAX){   //El potenciometro está en un valor intermedio
         TIM_UpdateMatchValue(LPC_TIM0,0,TIMER_NORMAL);
+        difficulty = NORMAL;
     } else{                         //El potenciometro está cerca de su valor maximo
         TIM_UpdateMatchValue(LPC_TIM0,0,TIMER_EASY);
+        difficulty = EASY;
     }
 
     LPC_ADC->ADGDR &= LPC_ADC->ADGDR;
