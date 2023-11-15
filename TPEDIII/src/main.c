@@ -25,8 +25,8 @@
 #define SINE_FREQ_IN_HZ 400
 #define PCLK_DAC_IN_MHZ 25
 
-uint16_t secondsCounter = 0;
-volatile uint16_t adcValue = 0;
+uint16_t secondsCounter;
+volatile uint16_t adcValue;
 
 typedef struct {
     uint8_t x, y;
@@ -77,24 +77,20 @@ uint32_t sinSamples[NUM_SINE_SAMPLE] = {511, 564, 617, 669, 719, 767, 812, 853, 
 							   97, 131, 169, 210, 255, 303, 353, 405, 458};
 
 int main() {
-
-	for(uint8_t index = 0; index<NUM_SINE_SAMPLE; index++)
-			sinSamples[index] = sinSamples[index]<<6;
+	for(uint8_t index = 0; index<NUM_SINE_SAMPLE; index++){
+		sinSamples[index] = sinSamples[index]<<6;
+    }
 
 	configButtons();
     configGPIO();
     configADC();
     configUART();
-    //configDAC();
-    //configDMA_DAC_Channel();
     initGame();
     /*while (1) {}*/ //El juego no debería comenzar hasta que el jugador apriete uno de los pulsadores
 
     while (1) {
         render();
-        //moveSnake();
-        //render();
-        delay(100);
+        delay(100); //SACAR CUENTAS
     }
 
     return 0;
@@ -120,32 +116,10 @@ void configTimers(){
     TIMConfigStruct.PrescaleValue = 1000;
     TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &TIMConfigStruct);
 
-    //TIM_Cmd(LPC_TIM0,ENABLE);         //No lo prendo aún
-    /*************************************************
-    TIM_TIMERCFG_Type TIMConfigStruct2;
-        TIMConfigStruct2.PrescaleOption = TIM_PRESCALE_USVAL;
-        TIMConfigStruct2.PrescaleValue = 500000;
-        TIM_Init(LPC_TIM1, TIM_TIMER_MODE, &TIMConfigStruct2); //Configuro el preescaler del timer 1 cada 500ms
-
-        //Configuro el Match 1.0 para hacer un toggle cada 1seg
-        TIM_MATCHCFG_Type MatchConfig2;
-    	MatchConfig2.MatchChannel = 0;
-    	MatchConfig2.IntOnMatch = ENABLE;
-    	MatchConfig2.ResetOnMatch = ENABLE;
-    	MatchConfig2.StopOnMatch = DISABLE;
-    	MatchConfig2.ExtMatchOutputType = TIM_EXTMATCH_TOGGLE;
-    	MatchConfig2.MatchValue = 20;
-    	TIM_ConfigMatch(LPC_TIM1,&MatchConfig2);
-    	NVIC_EnableIRQ(TIMER1_IRQn);
-
-        TIM_Cmd(LPC_TIM1,ENABLE);
-    */
     NVIC_EnableIRQ(TIMER0_IRQn);
-
 }
 
 void configButtons(){
-
 	LPC_PINCON->PINMODE0|=(3<<0);
 	LPC_PINCON->PINMODE0|=(3<<2);
 	LPC_PINCON->PINMODE0|=(3<<4);
@@ -175,7 +149,6 @@ void configSysTick(){
 }
 
 void configGPIO(){
-
     // P0.4 hasta P0.11 como Outputs
 	LPC_GPIO0->FIODIRL|=0x0FF0;
 	LPC_GPIO0->FIOSETL|=0xFFFF;
@@ -231,13 +204,11 @@ void configDAC(){
 }
 
 void configDMA_DAC_Channel(){
-
 	GPDMA_LLI_Type LLI1;
 	LLI1.SrcAddr = (uint32_t) sinSamples;
 	LLI1.DstAddr = (uint32_t) &LPC_DAC->DACR;
 	LLI1.NextLLI = (uint32_t) &LLI1;
 	LLI1.Control = samplesAmount | (1<<19)  | (1<<22) | (1<<26);
-
 
 	//source width 32 bits dest width 32 bits source increment
 	GPDMA_Init();
@@ -281,6 +252,8 @@ void initGame(){
     // Inicializa la longitud de la vibora y su dirección
     snakeLength = 3;
     direction = DER;
+    appleCounter = 0;
+    secondsCounter =0;
 
     snake[0].x = 2; snake[0].y = 4;
     snake[1].x = 1; snake[1].y = 4;
@@ -289,10 +262,10 @@ void initGame(){
     apple.x=6;
     apple.y=4;
 
-    configSysTick();
     configTimers();
     ADC_StartCmd(LPC_ADC,ADC_START_NOW);
     NVIC_EnableIRQ(ADC_IRQn);
+    configSysTick();
     TIM_Cmd(LPC_TIM0,ENABLE);
 }
 
@@ -316,7 +289,6 @@ void moveSnake(){
         snake[0]=newPos; //Guardo la nueva posición de la cabeza de la vibora
     } else{
         stopGame();
-        //Sonido de GameOver
     }
 }
 
@@ -390,15 +362,21 @@ void getRandomPair(uint8_t* a, uint8_t* b){
 
 //Se encarga de enviar las estadisticas de la partida a la PC
 void sendStats(){
-    uint8_t numbers[4];  //
+    static uint8_t	gameCounter = 0;
+    gameCounter++;
+	uint8_t numbers[4];
 
-    uint8_t data1[] = "Hola mi loco! Acá van los datos de la partida:\n\r";
+    uint8_t data0[] = "\n\rHola mi loco! Acá van las estadisticas:\n\r";
+    UART_Send(LPC_UART1,data0, sizeof(data0), BLOCKING);
+    uint8_t data1[] = "	Numero de partida: ";
     UART_Send(LPC_UART1,data1, sizeof(data1), BLOCKING);
-    char data2[]= "Cantidad de segundos jugados: ";
+    uint16_to_uint8Array(gameCounter, numbers);
+    UART_Send(LPC_UART1,(uint8_t *)numbers, sizeof(numbers), BLOCKING);
+    char data2[]= "\n\r	Cantidad de segundos jugados: ";
     UART_Send(LPC_UART1,(uint8_t *)data2, sizeof(data2), BLOCKING);
     uint16_to_uint8Array(secondsCounter, numbers);
     UART_Send(LPC_UART1,(uint8_t *)numbers, sizeof(numbers), BLOCKING);
-    char data3[]= " - Manzanas comidas: ";
+    char data3[]= "\n\r	Manzanas comidas: ";
     UART_Send(LPC_UART1,(uint8_t *)data3, sizeof(data3), BLOCKING);
     uint16_to_uint8Array(appleCounter, numbers);
     UART_Send(LPC_UART1,numbers, sizeof(numbers), BLOCKING);
@@ -472,7 +450,7 @@ void uint16_to_uint8Array(uint16_t value, uint8_t *result){
 
 //Lleva la cuenta de los segundos de la partida
 void SysTick_Handler(){
-    static uint8_t millisCount = 0;
+    static uint16_t millisCount = 0;
 	millisCount++;
 
     if(millisCount >= 1000){
@@ -509,7 +487,7 @@ void EINT3_IRQHandler(){
 	}
     // BOTON DE RESTART
 	else{
-        initGame();        
+        initGame();
 		LPC_GPIOINT->IO0IntClr |=(1<<22);
 	}
 }
@@ -519,6 +497,7 @@ void ADC_IRQHandler(){
 	adcValue = 0;
     if (ADC_ChannelGetStatus(LPC_ADC,ADC_CHANNEL_0,ADC_DATA_DONE)){ //Leo el valor de connversión en el canal 0
 		adcValue =  ADC_ChannelGetData(LPC_ADC,ADC_CHANNEL_0);
+	    NVIC_DisableIRQ(ADC_IRQn);
 	}
 
     //A menor valor en la medición, mayor es la resistencia del potenciometro
@@ -533,7 +512,6 @@ void ADC_IRQHandler(){
     }
 
     LPC_ADC->ADGDR &= LPC_ADC->ADGDR;
-    NVIC_DisableIRQ(ADC_IRQn);
 }
 
 void TIMER1_IRQHandler(){
