@@ -43,8 +43,6 @@ Direction direction;        //Direccion actual en la que se mueve la vibora
 uint8_t appleCounter = 0;   //Cantidad de manzanas ya comidas
 
 
-
-
 void configButtons(); // Interrupciones Externas
 void configTimers();     // Tick para mover la vibora
 void configADC();        // Potenciometro para regular velocidad de juego
@@ -85,17 +83,13 @@ int main() {
 
 	configButtons();
     configGPIO();
-    configSysTick();
     configADC();
-    configTimers();
-    ADC_StartCmd(LPC_ADC,ADC_START_NOW);
     configUART();
     //configDAC();
     //configDMA_DAC_Channel();
     initGame();
     /*while (1) {}*/ //El juego no debería comenzar hasta que el jugador apriete uno de los pulsadores
 
-    TIM_Cmd(LPC_TIM0,ENABLE);
     while (1) {
         render();
         //moveSnake();
@@ -275,9 +269,7 @@ void configADC(){
     ADC_Init(LPC_ADC, 200000);                       //Frec. de muestreo = 200kHz
 	ADC_IntConfig(LPC_ADC,ADC_ADINTEN0,ENABLE);      //Habilito interrupción canal 0
 	ADC_ChannelCmd(LPC_ADC,ADC_CHANNEL_0,ENABLE);    //Habilito canal
-    NVIC_EnableIRQ(ADC_IRQn);                        //Habilito interrupción del ADC
-    ADC_EdgeStartConfig(LPC_ADC,ADC_START_ON_RISING);//Selecciono los flancos de subida para iniciar la conversión
-    //ADC_StartCmd(LPC_ADC, ADC_START_ON_MAT10);       //Habilito la conversión por el Match 1.0
+//  NVIC_EnableIRQ(ADC_IRQn);                        //Habilito interrupción del ADC
 }
 
 //***********************************************
@@ -296,6 +288,12 @@ void initGame(){
 
     apple.x=6;
     apple.y=4;
+
+    configSysTick();
+    configTimers();
+    ADC_StartCmd(LPC_ADC,ADC_START_NOW);
+    NVIC_EnableIRQ(ADC_IRQn);
+    TIM_Cmd(LPC_TIM0,ENABLE);
 }
 
 // Genera la nueva posición de la vibora y si es válida la actualiza en el arreglo snake
@@ -319,9 +317,6 @@ void moveSnake(){
     } else{
         stopGame();
         //Sonido de GameOver
-        sendStats();
-        configDAC();            // Salida de sonido para WIN/GameOver
-        configDMA_DAC_Channel();
     }
 }
 
@@ -395,7 +390,7 @@ void getRandomPair(uint8_t* a, uint8_t* b){
 
 //Se encarga de enviar las estadisticas de la partida a la PC
 void sendStats(){
-    uint8_t numbers[4], digits = 0;  //
+    uint8_t numbers[4];  //
 
     uint8_t data1[] = "Hola mi loco! Acá van los datos de la partida:\n\r";
     UART_Send(LPC_UART1,data1, sizeof(data1), BLOCKING);
@@ -421,10 +416,6 @@ void render(){
     if(i>=(snakeLength+1)){
         i=0;
     }
-    uint8_t actualX=0;      //Acumulador de flags de las cordenadas en X a encender
-    uint8_t actualY=0;   //Acumulador de flags de las cordenadas en Y a encender
-    uint16_t FIOX=0;        //Acumulador de pines a encender en X
-    uint16_t FIOY=0xFFFF;   //Acumulador de pines a encender en Y
 
     if(!i){     //Renderizar posición de la manzana
         LPC_GPIO2->FIOPINL = X[apple.x];
@@ -437,21 +428,23 @@ void render(){
 }
 
 /* Detiene el juego, congelando el movimiento de la vibora
-*  - Detiene el timer0 (tick del sistema)
-*  -
+*  - Detiene el timer0 (tick de movimiento)
+*  - Detiene la interrupción del Systick (Contador de segundos)
+*  - Configura y enciende el DAC con su canal de DMA correspondiente
+*  - Envía las estadisticas de la partida por el puerto UART
 */
 void stopGame(){
     TIM_Cmd(LPC_TIM0,DISABLE);
     SYSTICK_Cmd(DISABLE);
-    TIM_Cmd(LPC_TIM1,DISABLE);
-    NVIC_DisableIRQ(ADC_IRQn);
+    sendStats();
+    configDAC();
+    configDMA_DAC_Channel();
 }
 
 //Convierte un entero de 16bits a un string
 void uint16_to_uint8Array(uint16_t value, uint8_t *result){
 // Buffer size based on the maximum number of digits in a uint16_t (5 digits)
     uint8_t buffer[5];
-
     // Initialize index
     int8_t index = 0;
 
@@ -465,16 +458,12 @@ void uint16_to_uint8Array(uint16_t value, uint8_t *result){
             value /= 10;
         }
     }
-
     // Reverse the buffer to get the correct order
     for (int8_t i = 0; i < index; ++i) {
         result[i] = buffer[index - 1 - i];
     }
-
     // Null-terminate the result
     result[index] = '\0';
-
-    return index;
 }
 
 //***********************************************
@@ -486,7 +475,7 @@ void SysTick_Handler(){
     static uint8_t millisCount = 0;
 	millisCount++;
 
-    if(millisCount >= 100){
+    if(millisCount >= 1000){
 	    secondsCounter++;
 	    millisCount = 0;
 	}
@@ -499,37 +488,36 @@ void TIMER0_IRQHandler(){
 
 void EINT3_IRQHandler(){
 	//ARRIBA
-		if((LPC_GPIOINT->IO0IntStatR)&(1<<0)){
-			updateDirection(DER,IZQ);
-			LPC_GPIOINT->IO0IntClr |=(1<<0);
-		}
-
-		//DERECHA
-		else if((LPC_GPIOINT->IO0IntStatR)&(1<<1)){
-			updateDirection(ARRIBA,ABAJO);
-			LPC_GPIOINT->IO0IntClr |=(1<<1);
-		}
-
-		//IZQUIERDA
-		else if((LPC_GPIOINT->IO0IntStatR)&(1<<2)){
-			updateDirection(ABAJO,ARRIBA);
-			LPC_GPIOINT->IO0IntClr |=(1<<2);
-		}
-
-		//ABAJO
-		else if((LPC_GPIOINT->IO0IntStatR)&(1<<3)){
-			updateDirection(IZQ,DER);
-			LPC_GPIOINT->IO0IntClr |=(1<<3);
-		}
-		else{
-			LPC_GPIOINT->IO0IntClr |=(1<<22);
-		}
+	if((LPC_GPIOINT->IO0IntStatR)&(1<<0)){
+		updateDirection(DER,IZQ);
+		LPC_GPIOINT->IO0IntClr |=(1<<0);
+	}
+	//DERECHA
+	else if((LPC_GPIOINT->IO0IntStatR)&(1<<1)){
+		updateDirection(ARRIBA,ABAJO);
+		LPC_GPIOINT->IO0IntClr |=(1<<1);
+	}
+	//IZQUIERDA
+	else if((LPC_GPIOINT->IO0IntStatR)&(1<<2)){
+		updateDirection(ABAJO,ARRIBA);
+		LPC_GPIOINT->IO0IntClr |=(1<<2);
+	}
+	//ABAJO
+	else if((LPC_GPIOINT->IO0IntStatR)&(1<<3)){
+		updateDirection(IZQ,DER);
+		LPC_GPIOINT->IO0IntClr |=(1<<3);
+	}
+    // BOTON DE RESTART
+	else{
+        initGame();        
+		LPC_GPIOINT->IO0IntClr |=(1<<22);
+	}
 }
 
 void ADC_IRQHandler(){
     //volatile uint16_t adcValue = 0; //Uso variable local, no hay necesidad de tenerla como global
 	adcValue = 0;
-    if (ADC_ChannelGetStatus(LPC_ADC,ADC_CHANNEL_0,ADC_DATA_DONE)){
+    if (ADC_ChannelGetStatus(LPC_ADC,ADC_CHANNEL_0,ADC_DATA_DONE)){ //Leo el valor de connversión en el canal 0
 		adcValue =  ADC_ChannelGetData(LPC_ADC,ADC_CHANNEL_0);
 	}
 
