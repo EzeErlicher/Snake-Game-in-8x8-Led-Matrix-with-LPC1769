@@ -151,18 +151,44 @@ void configTimers(){
 }
 
 void configButtons(){
-
+    /*
 	LPC_PINCON->PINMODE0|=(3<<0);
 	LPC_PINCON->PINMODE0|=(3<<2);
 	LPC_PINCON->PINMODE0|=(3<<4);
 	LPC_PINCON->PINMODE0|=(3<<6);
 
+	LPC_PINCON->PINMODE4|=(3<<26);  // botón de restart
+
 	// Enable rising edge interrupt for pin
 	LPC_GPIOINT->IO0IntEnR |=0x0000000F;
+	LPC_GPIOINT->IO2IntEnR |=(1<<13);
 
 	LPC_GPIOINT->IO0IntClr |=0x0000000F;
+	LPC_GPIOINT->IO2IntClr |=(1<<13);
+|   */
+    PINSEL_CFG_Type pinCfg;
+	pinCfg.Funcnum = 0;
+	pinCfg.OpenDrain = PINSEL_PINMODE_NORMAL;
+	pinCfg.Pinmode = 0;
+	pinCfg.Portnum = 0;
+	pinCfg.Pinnum = 0;
+	PINSEL_ConfigPin(&pinCfg); //P0.0   -
+    pinCfg.Pinnum = 1;
+	PINSEL_ConfigPin(&pinCfg); //P0.1   -
+    pinCfg.Pinnum = 2;
+	PINSEL_ConfigPin(&pinCfg); //P0.2   -
+    pinCfg.Pinnum = 3;
+	PINSEL_ConfigPin(&pinCfg); //P0.3   -
+    pinCfg.Portnum = 2;
+	pinCfg.Pinnum = 13;
+	PINSEL_ConfigPin(&pinCfg); //P2.13  - Boton de Start/Restart
 
-	// Enable EINT3 interrupt
+    GPIO_IntCmd(0,0xF,0);       //Habilito las interrupciones de P0.0 a P0.3 por flanco de subida
+    GPIO_ClearInt(0,0xF);       //Limpio las flags de P0.0 a P0.3
+    GPIO_IntCmd(2,(1<<13),0);   //Habilito las interrupciones de P2.13 por flanco de subida
+    GPIO_ClearInt(2,(1<<13));   //Limpio las flags de P2.13
+
+    // Enable EINT3 interrupt
 	NVIC_EnableIRQ(EINT3_IRQn);
 }
 
@@ -492,29 +518,45 @@ void TIMER0_IRQHandler(){
 }
 
 void EINT3_IRQHandler(){
+
 	//ARRIBA
-		if((LPC_GPIOINT->IO0IntStatR)&(1<<0)){
-			updateDirection(DER,IZQ);
-			LPC_GPIOINT->IO0IntClr |=(1<<0);
-		}
+	//if((LPC_GPIOINT->IO0IntStatR)&(1<<0)){
+    if(GPIO_GetIntStatus(0,0,0)){
+	    updateDirection(DER,IZQ);
+		//LPC_GPIOINT->IO0IntClr |=(1<<0);
+        GPIO_ClearInt(0,1);
+	}
 
-		//DERECHA
-		else if((LPC_GPIOINT->IO0IntStatR)&(1<<1)){
-			updateDirection(ARRIBA,ABAJO);
-			LPC_GPIOINT->IO0IntClr |=(1<<1);
-		}
+	//DERECHA
+	//else if((LPC_GPIOINT->IO0IntStatR)&(1<<1)){
+    else if(GPIO_GetIntStatus(0,1,0)){
+		updateDirection(ARRIBA,ABAJO);
+		//LPC_GPIOINT->IO0IntClr |=(1<<1);
+        GPIO_ClearInt(0,(1<<1));
+	}
 
-		//IZQUIERDA
-		else if((LPC_GPIOINT->IO0IntStatR)&(1<<2)){
-			updateDirection(ABAJO,ARRIBA);
-			LPC_GPIOINT->IO0IntClr |=(1<<2);
-		}
+	//IZQUIERDA
+	//else if((LPC_GPIOINT->IO0IntStatR)&(1<<2)){
+    else if(GPIO_GetIntStatus(0,2,0)){			
+       	updateDirection(ABAJO,ARRIBA);
+		//LPC_GPIOINT->IO0IntClr |=(1<<2);
+        GPIO_ClearInt(0,(1<<2));
+	}
 
-		//ABAJO
-		else{
-			updateDirection(IZQ,DER);
-			LPC_GPIOINT->IO0IntClr |=(1<<3);
-		}
+	//ABAJO
+	//else if((LPC_GPIOINT->IO0IntStatR)&(1<<3)){
+    else if(GPIO_GetIntStatus(0,3,0)){
+		updateDirection(IZQ,DER);
+		//GPDMA_ChannelCmd(0,DISABLE);
+		//LPC_GPIOINT->IO0IntClr |=(1<<3);
+            GPIO_ClearInt(0,(1<<3));
+	}
+
+	// Llamar rutina de resetGame
+	else{
+		//LPC_GPIOINT->IO2IntClr |=(1<<13);
+        GPIO_ClearInt(2,(1<<13));
+	}
 }
 
 void ADC_IRQHandler(){
