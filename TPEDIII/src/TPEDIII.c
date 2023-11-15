@@ -83,14 +83,10 @@ void ADC_IRQHandler(){
     }
 
     LPC_ADC->ADGDR &= LPC_ADC->ADGDR;
-
-
 }
 
 void TIMER1_IRQHandler(){
-
 	ADC_StartCmd(LPC_ADC, ADC_START_NOW);
-
 	TIM_ClearIntPending(LPC_TIM1,TIM_MR0_INT);
 }
 

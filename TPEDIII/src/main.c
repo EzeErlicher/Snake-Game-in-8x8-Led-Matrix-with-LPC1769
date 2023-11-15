@@ -10,20 +10,23 @@
 #include "lpc17xx_pinsel.h"
 #include "lpc17xx_exti.h"
 
-uint16_t X[8]={0x0020,0x0001,0x0002,0x0008,0x0004,0x0010,0x0040,0x0080};
-uint16_t Y[8]={0x0DF0,0x07F0,0x0EF0,0x0BF0,0x0FE0,0x0F70,0x0FD0,0x0FB0};
-
 #define ANCHO 8
 #define ALTO 8
+
+#define HARD_MAX    1800
+#define NORMAL_MAX  3000
+
+#define TIMER_EASY   2500
+#define TIMER_NORMAL 1500
+#define TIMER_HARD   800
 
 #define DMA_SIZE 60
 #define NUM_SINE_SAMPLE 60
 #define SINE_FREQ_IN_HZ 100
 #define PCLK_DAC_IN_MHZ 25
 
-uint8_t actualX=0;
-uint8_t actualY=0xFF;
 uint16_t secondsCounter = 0;
+volatile uint16_t adcValue = 0;
 
 typedef struct {
     uint8_t x, y;
@@ -32,10 +35,6 @@ typedef struct {
 typedef enum {
     ARRIBA, ABAJO, IZQ, DER
 } Direction;    //Direcciones en la que puede moverse la vibora
-
-typedef enum {
-    EASY, NORMAL, HARD
-} Difficulty;   //Dificultad = Velocidad de actualizacion del movimiento
 
 Point snake[ANCHO * ALTO];  //Arreglo de posiciones ocupadas por la vibora
 uint8_t snakeLength;        //Cantidad de posiciones ocupadas por la vibora
@@ -61,7 +60,6 @@ void updateDirection(Direction new, Direction avoid);
 void createNewApple();
 void moveSnake();
 void render();
-void setDifficulty(Difficulty difficulty);
 void sendStats();
 void initGame();
 void stopGame();
@@ -112,7 +110,6 @@ int main() {
 
 
 void configTimers(){
-
 	TIM_MATCHCFG_Type MatchConfig;
 	MatchConfig.MatchChannel = 0;
 	MatchConfig.IntOnMatch = ENABLE;
@@ -127,10 +124,28 @@ void configTimers(){
     TIMConfigStruct.PrescaleOption = TIM_PRESCALE_USVAL;
     TIMConfigStruct.PrescaleValue = 1000;
     TIM_Init(LPC_TIM0, TIM_TIMER_MODE, &TIMConfigStruct);
-
     NVIC_EnableIRQ(TIMER0_IRQn);
+    //TIM_Cmd(LPC_TIM0,ENABLE);         //No lo prendo aún
+    /*************************************************/
 
-    //TIM_Cmd(LPC_TIM0,ENABLE);
+    //Usamos el Match 1.0 para iniciar la conversión del ADC en cada interrupción
+    TIM_TIMERCFG_Type TIMConfigStruct;
+    TIMConfigStruct.PrescaleOption = TIM_PRESCALE_USVAL;
+    TIMConfigStruct.PrescaleValue = 500000;
+    TIM_Init(LPC_TIM1, TIM_TIMER_MODE, &TIMConfigStruct); //Configuro el preescaler del timer 1 cada 500ms
+
+    //Configuro el Match 1.0 para hacer un toggle cada 1seg
+    TIM_MATCHCFG_Type MatchConfig;
+	MatchConfig.MatchChannel = 0;
+	MatchConfig.IntOnMatch = ENABLE;
+	MatchConfig.ResetOnMatch = ENABLE;
+	MatchConfig.StopOnMatch = DISABLE;
+	MatchConfig.ExtMatchOutputType = TIM_EXTMATCH_NOTHING;
+	MatchConfig.MatchValue = 10;
+	TIM_ConfigMatch(LPC_TIM1,&MatchConfig);
+	NVIC_EnableIRQ(TIMER1_IRQn);
+    TIM_Cmd(LPC_TIM1,ENABLE);
+
 }
 
 void configButtons(){
@@ -241,7 +256,22 @@ void configDMA_DAC_Channel(){
 
 }
 
+void configADC(){
+    PINSEL_CFG_Type PinCfg;
+	PinCfg.Funcnum = 1;
+	PinCfg.OpenDrain = 0;
+	PinCfg.Pinmode = 0;         //Sin pull-up ni pull-down
+	PinCfg.Pinnum = 23;
+	PinCfg.Portnum = 0;
+	PINSEL_ConfigPin(&PinCfg);  //P0.23 como AD0.0
 
+    ADC_Init(LPC_ADC, 200000);                       //Frec. de muestreo = 200kHz
+	ADC_IntConfig(LPC_ADC,ADC_ADINTEN0,ENABLE);      //Habilito interrupción canal 0
+	ADC_ChannelCmd(LPC_ADC,ADC_CHANNEL_0,ENABLE);    //Habilito canal
+    NVIC_EnableIRQ(ADC_IRQn);                        //Habilito interrupción del ADC
+    ADC_EdgeStartConfig(LPC_ADC,ADC_START_ON_RISING);//Selecciono los flancos de subida para iniciar la conversión
+    //ADC_StartCmd(LPC_ADC, ADC_START_ON_MAT10);       //Habilito la conversión por el Match 1.0
+}
 
 //***********************************************
 //                MECANICAS
@@ -377,12 +407,15 @@ void sendStats(){
 
 //Chequea y envía los leds a encender a la matriz
 void render(){
+    static uint16_t X[8]={0x0020,0x0001,0x0002,0x0008,0x0004,0x0010,0x0040,0x0080};
+    static uint16_t Y[8]={0x0DF0,0x07F0,0x0EF0,0x0BF0,0x0FE0,0x0F70,0x0FD0,0x0FB0};
+
     static int i = 0;
     if(i>=(snakeLength+1)){
         i=0;
     }
-    actualX=0;      //Acumulador de flags de las cordenadas en X a encender
-    actualY=0x00;   //Acumulador de flags de las cordenadas en Y a encender
+    uint8_t actualX=0;      //Acumulador de flags de las cordenadas en X a encender
+    uint8_t actualY=0;   //Acumulador de flags de las cordenadas en Y a encender
     uint16_t FIOX=0;        //Acumulador de pines a encender en X
     uint16_t FIOY=0xFFFF;   //Acumulador de pines a encender en Y
 
@@ -403,6 +436,8 @@ void render(){
 void stopGame(){
     TIM_Cmd(LPC_TIM0,DISABLE);
     SYSTICK_Cmd(DISABLE);
+    TIM_Cmd(LPC_TIM1,DISABLE);
+    NVIC_DisableIRQ(ADC_IRQn);
 }
 
 //Convierte un entero de 16bits a un string
@@ -434,6 +469,7 @@ void uint16_to_uint8Array(uint16_t value, uint8_t *result){
 
     return index;
 }
+
 //***********************************************
 //              INTERRUPCIONES
 //***********************************************
@@ -451,11 +487,10 @@ void SysTick_Handler(){
 
 void TIMER0_IRQHandler(){
     moveSnake();
-    //render();
     TIM_ClearIntPending(LPC_TIM0,TIM_MR0_INT);
 }
-void EINT3_IRQHandler(){
 
+void EINT3_IRQHandler(){
 	//ARRIBA
 		if((LPC_GPIOINT->IO0IntStatR)&(1<<0)){
 			updateDirection(DER,IZQ);
@@ -479,4 +514,30 @@ void EINT3_IRQHandler(){
 			updateDirection(IZQ,DER);
 			LPC_GPIOINT->IO0IntClr |=(1<<3);
 		}
+}
+
+void ADC_IRQHandler(){
+    //volatile uint16_t adcValue = 0; //Uso variable local, no hay necesidad de tenerla como global
+	adcValue = 0;
+    if (ADC_ChannelGetStatus(LPC_ADC,ADC_CHANNEL_0,ADC_DATA_DONE)){
+		adcValue =  ADC_ChannelGetData(LPC_ADC,ADC_CHANNEL_0);
+	}
+
+    //A menor valor en la medición, mayor es la resistencia del potenciometro
+    //Escala de mediociones del ADC: 0--(Zona dificil)--HARD_MAX--(Zona normal)--NORMAL_MAX--(Zona facil)--4095
+
+    if(adcValue>NORMAL_MAX){        //El potenciometro está cerca de su valor minimo
+        TIM_UpdateMatchValue(LPC_TIM0,0,TIMER_HARD);
+    } else if(adcValue>HARD_MAX){   //El potenciometro está en un valor intermedio
+        TIM_UpdateMatchValue(LPC_TIM0,0,TIMER_NORMAL);
+    } else{                         //El potenciometro está cerca de su valor maximo
+        TIM_UpdateMatchValue(LPC_TIM0,0,TIMER_EASY);
+    }
+
+    LPC_ADC->ADGDR &= LPC_ADC->ADGDR;
+}
+
+void TIMER1_IRQHandler(){
+	ADC_StartCmd(LPC_ADC, ADC_START_NOW);
+	TIM_ClearIntPending(LPC_TIM1,TIM_MR0_INT);
 }
