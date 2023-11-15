@@ -13,12 +13,12 @@
 #define ANCHO 8
 #define ALTO 8
 
-#define HARD_MAX    1800
-#define NORMAL_MAX  3000
+#define HARD_MAX    3500
+#define NORMAL_MAX  1000
 
-#define TIMER_EASY   1200
-#define TIMER_NORMAL 1000
-#define TIMER_HARD   500
+#define TIMER_EASY   1300
+#define TIMER_NORMAL 800
+#define TIMER_HARD   400
 
 #define samplesAmount 60
 #define NUM_SINE_SAMPLE 60
@@ -26,7 +26,7 @@
 #define PCLK_DAC_IN_MHZ 25
 
 uint16_t secondsCounter;
-volatile uint16_t adcValue;
+__IO uint32_t adcValue;
 
 typedef struct {
     uint8_t x, y;
@@ -61,8 +61,6 @@ void render();
 void sendStats();
 void initGame();
 void stopGame();
-//Resetea el juego
-void resetGame();
 void getRandomPair(uint8_t* a, uint8_t* b);
 void uint16_to_uint8Array(uint16_t value, uint8_t *result);
 
@@ -503,10 +501,10 @@ void ADC_IRQHandler(){
     //A menor valor en la medición, mayor es la resistencia del potenciometro
     //Escala de mediociones del ADC: 0--(Zona dificil)--HARD_MAX--(Zona normal)--NORMAL_MAX--(Zona facil)--4095
 
-    if(adcValue>NORMAL_MAX){        //El potenciometro está cerca de su valor minimo
+    if(adcValue>HARD_MAX){        //El potenciometro está cerca de su valor minimo
         TIM_UpdateMatchValue(LPC_TIM0,0,TIMER_HARD);
-    //} else if(adcValue>HARD_MAX){   //El potenciometro está en un valor intermedio
-       // TIM_UpdateMatchValue(LPC_TIM0,0,TIMER_NORMAL);
+    } else if(adcValue>NORMAL_MAX){   //El potenciometro está en un valor intermedio
+        TIM_UpdateMatchValue(LPC_TIM0,0,TIMER_NORMAL);
     } else{                         //El potenciometro está cerca de su valor maximo
         TIM_UpdateMatchValue(LPC_TIM0,0,TIMER_EASY);
     }
