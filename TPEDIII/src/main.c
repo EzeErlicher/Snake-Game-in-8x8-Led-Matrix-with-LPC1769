@@ -46,7 +46,7 @@ Difficulty difficulty;      // Dificultad actual de la partida
 Bool start = FALSE;
 
 void configButtons();        // Interrupciones Externas
-void configTimers();         // Tick para mover la vibora
+void configTimer0();         // Tick para mover la vibora
 void configADC();            // Potenciometro para regular velocidad de juego
 void configDAC();            //
 void configDMA_DAC_Channel();//
@@ -64,14 +64,12 @@ void sendStats();
 void initGame();
 void stopGame();
 void getRandomPair(uint8_t* a, uint8_t* b);
-void uint16_to_uint8Array(uint16_t value, uint8_t *result);
+uint8_t uint16_to_uint8Array(uint16_t value, uint8_t *result);
 
 void delay(uint32_t times) {
 	for(uint32_t i=0; i<times; i++)
 		for(uint32_t j=0; j<times; j++);
 }
-
-
 
 uint32_t sinSamples[SAMPLES_AMOUNT] = {
 		511, 564, 617, 669, 719, 767, 812, 853, 891, 925, 954, 978, 997, 1011, 1020, 1023,
@@ -79,10 +77,9 @@ uint32_t sinSamples[SAMPLES_AMOUNT] = {
 		405, 353, 303, 255, 210, 169, 131, 97, 68, 44, 25, 11, 2, 0, 2, 11, 25, 44, 68,
 	    97, 131, 169, 210, 255, 303, 353, 405, 458};
 
-
-// se desplazan las muestras en 6 posiciones
-// VALUE en el registro DACR comprende los bits 15-6
 int main() {
+    // se desplazan las muestras en 6 posiciones
+    // VALUE en el registro DACR comprende los bits 15-6
 	for(uint8_t index = 0; index<SAMPLES_AMOUNT; index++){
 		sinSamples[index] = sinSamples[index]<<6;
     }
@@ -109,7 +106,8 @@ int main() {
 //              CONFIGURACIONES
 //***********************************************
 
-void configTimers(){
+//Timer encargado del tick de movimiento de la vibora
+void configTimer0(){
 	TIM_MATCHCFG_Type MatchConfig;
 	MatchConfig.MatchChannel = 0;
 	MatchConfig.IntOnMatch = ENABLE;
@@ -262,7 +260,7 @@ void configADC(){
 
     ADC_Init(LPC_ADC, 200000);                       //Frec. de muestreo = 200kHz
 	ADC_IntConfig(LPC_ADC,ADC_ADINTEN0,ENABLE);      //Habilito interrupción canal 0
-	ADC_ChannelCmd(LPC_ADC,ADC_CHANNEL_0,ENABLE);    //Habilito canal
+	ADC_ChannelCmd(LPC_ADC,ADC_CHANNEL_0,ENABLE);    //Habilito canal 0
 }
 
 //***********************************************
@@ -284,7 +282,7 @@ void initGame(){
     apple.x=6;
     apple.y=4;
 
-    configTimers();
+    configTimer0();
     ADC_StartCmd(LPC_ADC,ADC_START_NOW);    //Hace una unica conversión para obtener la velocidad de juego
     NVIC_EnableIRQ(ADC_IRQn);
     configSysTick();
@@ -385,14 +383,15 @@ void getRandomPair(uint8_t* a, uint8_t* b){
 void sendStats(){
     static uint8_t	gameCounter = 0;    //Contador de partidas
     gameCounter++;
-	uint8_t numbers[4]="\0\0\0\0"; //Buffer para el array de digitos
+	uint8_t numbers[4]; //Buffer para el array de digitos
+    uint8_t digitos;    //Auxiliar para contar la cantidad de digitos en el buffer
 
     uint8_t data0[] = "\n\rChan chan chan...Se terminó el juego mi loco! Acá van un par de estadisticas:\n\r";
     UART_Send(LPC_UART1,data0, sizeof(data0), BLOCKING);
 
     UART_Send(LPC_UART1,(uint8_t*)"	ID de partida: ",17, BLOCKING);
-    uint16_to_uint8Array(gameCounter, numbers);
-    UART_Send(LPC_UART1,(uint8_t *)numbers, sizeof(numbers), BLOCKING);
+    digitos=uint16_to_uint8Array(gameCounter, numbers);
+    UART_Send(LPC_UART1,(uint8_t *)numbers, digitos, BLOCKING);
 
     UART_Send(LPC_UART1,(uint8_t*)"\n\r	Dificultad seleccionada: ",29, BLOCKING);
     if(difficulty==EASY){
@@ -404,11 +403,11 @@ void sendStats(){
     }
     UART_Send(LPC_UART1,(uint8_t*)"\n\r	Duración de la partida en segundos: ",41, BLOCKING);
     uint16_to_uint8Array(secondsCounter, numbers);
-    UART_Send(LPC_UART1,(uint8_t *)numbers, sizeof(numbers), BLOCKING);
+    UART_Send(LPC_UART1,(uint8_t *)numbers, digitos, BLOCKING);
 
     UART_Send(LPC_UART1,(uint8_t*)"\n\r	Manzanas comidas: ",22, BLOCKING);
     uint16_to_uint8Array(appleCounter, numbers);
-    UART_Send(LPC_UART1,numbers, sizeof(numbers), BLOCKING);
+    UART_Send(LPC_UART1,(uint8_t *)numbers, digitos, BLOCKING);
 
     UART_Send(LPC_UART1,(uint8_t *)"\n\r",2,BLOCKING);
 }
@@ -457,8 +456,8 @@ void stopGame(){
     configDMA_DAC_Channel();
 }
 
-//Convierte un entero de 16bits a un string
-void uint16_to_uint8Array(uint16_t value, uint8_t *result){
+//Convierte un entero de 16bits a un string de digitos en ASCII
+uint8_t uint16_to_uint8Array(uint16_t value, uint8_t *result){
 // Buffer size based on the maximum number of digits in a uint16_t (5 digits)
     uint8_t buffer[5];
     // Initialize index
@@ -480,6 +479,7 @@ void uint16_to_uint8Array(uint16_t value, uint8_t *result){
     }
     // Null-terminate the result
     result[index] = '\0';
+    return index;
 }
 
 //***********************************************
