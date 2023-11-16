@@ -59,6 +59,7 @@ void updateDirection(Direction new, Direction avoid);
 void createNewApple();
 void moveSnake();
 void render();
+void helloWorld();
 void sendStats();
 void initGame();
 void stopGame();
@@ -79,11 +80,12 @@ int main() {
 	for(uint8_t index = 0; index<NUM_SINE_SAMPLE; index++){
 		sinSamples[index] = sinSamples[index]<<6;
     }
-
+    
+    configUART();
 	configButtons();
     configGPIO();
     configADC();
-    configUART();
+    helloWorld();
     initGame();
     /*while (1) {}*/ //El juego no debería comenzar hasta que el jugador apriete uno de los pulsadores
 
@@ -171,15 +173,13 @@ void configUART(){
 
 	UART_CFG_Type UARTConfigStruct;
 	UART_FIFO_CFG_Type UARTFIFOConfigStruct;
-		//configuraci n por defecto:
-	UART_ConfigStructInit(&UARTConfigStruct);
-		//inicializa perif rico
+	UART_ConfigStructInit(&UARTConfigStruct);   //Usamos la configuración por defecto
 	UART_Init(LPC_UART1, &UARTConfigStruct);
+
 	UART_FIFOConfigStructInit(&UARTFIFOConfigStruct);
-		//Inicializa FIFO
 	UART_FIFOConfig(LPC_UART1, &UARTFIFOConfigStruct);
-		//Habilita transmisi n
-	UART_TxCmd(LPC_UART1, ENABLE);
+
+	UART_TxCmd(LPC_UART1, ENABLE);  //Habilitamos la transmisión
 }
 
 void configDAC(){
@@ -239,19 +239,18 @@ void configADC(){
     ADC_Init(LPC_ADC, 200000);                       //Frec. de muestreo = 200kHz
 	ADC_IntConfig(LPC_ADC,ADC_ADINTEN0,ENABLE);      //Habilito interrupción canal 0
 	ADC_ChannelCmd(LPC_ADC,ADC_CHANNEL_0,ENABLE);    //Habilito canal
-//  NVIC_EnableIRQ(ADC_IRQn);                        //Habilito interrupción del ADC
 }
 
 //***********************************************
 //                MECANICAS
 //***********************************************
 
-//Inicializa la vibora con tres leds de largo y su dirección + una manzana inicial
+//Inicializa todo lo necesario para una nueva partida
 void initGame(){
-    // Inicializa la longitud de la vibora y su dirección
+    // Setea la longitud de la vibora y su dirección
     snakeLength = 3;
     direction = DER;
-    appleCounter = 0;
+    appleCounter = 0;   //Resetea los contadores de manzanas comidas y segundos transcurridos
     secondsCounter =0;
 
     snake[0].x = 2; snake[0].y = 4;
@@ -262,10 +261,10 @@ void initGame(){
     apple.y=4;
 
     configTimers();
-    ADC_StartCmd(LPC_ADC,ADC_START_NOW);
+    ADC_StartCmd(LPC_ADC,ADC_START_NOW);    //Hace una unica conversión para obtener la velocidad de juego
     NVIC_EnableIRQ(ADC_IRQn);
     configSysTick();
-    TIM_Cmd(LPC_TIM0,ENABLE);
+    TIM_Cmd(LPC_TIM0,ENABLE);               //Habilita el timer encargado del tick de movimiento de la vibora
 }
 
 // Genera la nueva posición de la vibora y si es válida la actualiza en el arreglo snake
@@ -292,10 +291,10 @@ void moveSnake(){
 }
 
 /*  Chequea si el proximo movimiento newPos de la vibora contra cuatro situaciones:
-    - Fuera de los limites -> GameOver: Sonido + StopTotal + Enviar stats
-    - Choque contra si misma -> GameOver
-    - Choque con la manzana -> moveSnake + WIN: Sonido + createNewApple + updateLength
-    - Espacio libre -> moveSnake
+    1) Fuera de los limites -> GameOver: Sonido + StopTotal + Enviar stats
+    2) Choque contra si misma -> GameOver
+    3) Choque con la manzana -> moveSnake + createNewApple + updateLength
+    4) Espacio libre -> moveSnake
     ---
        Return: -1 = Game Over // 0 = moveSnake
 */
@@ -315,7 +314,6 @@ uint8_t checkCollisions(Point newPos){
         snakeLength++;
         appleCounter++;
         createNewApple();
-        //Sonido de WIN
         return 0;
     }
     //Caso 4: Movimiento válido a espacio vacío
@@ -361,18 +359,18 @@ void getRandomPair(uint8_t* a, uint8_t* b){
 
 //Se encarga de enviar las estadisticas de la partida a la PC
 void sendStats(){
-    static uint8_t	gameCounter = 0;
+    static uint8_t	gameCounter = 0;    //Contador de partidas
     gameCounter++;
 	uint8_t numbers[4]; //Buffer para el array de digitos
 
-    uint8_t data0[] = "\n\rHola mi loco! Acá van las estadisticas:\n\r";
+    uint8_t data0[] = "\n\rChan chan chan...Se terminó el juego mi loco! Acá van un par de estadisticas:\n\r";
     UART_Send(LPC_UART1,data0, sizeof(data0), BLOCKING);
-    uint8_t data1[] = "	ID de partida: ";
-    UART_Send(LPC_UART1,data1, sizeof(data1), BLOCKING);
+
+    UART_Send(LPC_UART1,(uint8_t*)"	ID de partida: ",17, BLOCKING);
     uint16_to_uint8Array(gameCounter, numbers);
     UART_Send(LPC_UART1,(uint8_t *)numbers, sizeof(numbers), BLOCKING);
-    uint8_t data2[] = "\n\r	Dificultad seleccionada: ";
-    UART_Send(LPC_UART1,data2, sizeof(data2), BLOCKING);
+
+    UART_Send(LPC_UART1,(uint8_t*)"\n\r	Dificultad seleccionada: ",29, BLOCKING);
     if(difficulty==EASY){
         UART_Send(LPC_UART1,(uint8_t *)"FACIL",5,BLOCKING);
     } else if(difficulty==NORMAL){
@@ -380,15 +378,25 @@ void sendStats(){
     } else{
         UART_Send(LPC_UART1,(uint8_t *)"DIFICIL",7,BLOCKING);
     }
-    char data3[]= "\n\r	Duración de la partida en segundos: ";
-    UART_Send(LPC_UART1,data3, sizeof(data3), BLOCKING);
+    UART_Send(LPC_UART1,(uint8_t*)"\n\r	Duración de la partida en segundos: ",41, BLOCKING);
     uint16_to_uint8Array(secondsCounter, numbers);
     UART_Send(LPC_UART1,(uint8_t *)numbers, sizeof(numbers), BLOCKING);
-    char data4[]= "\n\r	Manzanas comidas: ";
-    UART_Send(LPC_UART1,(uint8_t *)data4, sizeof(data4), BLOCKING);
+
+    UART_Send(LPC_UART1,(uint8_t*)"\n\r	Manzanas comidas: ",22, BLOCKING);
     uint16_to_uint8Array(appleCounter, numbers);
     UART_Send(LPC_UART1,numbers, sizeof(numbers), BLOCKING);
-    UART_Send(LPC_UART1,(uint8_t *)"\n\r\0",3,BLOCKING);
+
+    UART_Send(LPC_UART1,(uint8_t *)"\n\r",2,BLOCKING);
+}
+
+//
+void helloWorld(){
+    UART_Send(LPC_UART1,(uint8_t*)"Bueeeenas! Gracias por jugar nuestro juego, acá te paso un par de tips sobre como funciona todo:\n\r", 100, BLOCKING);
+    UART_Send(LPC_UART1,(uint8_t*)"  - Para iniciar la partida apretá el botón de Start/Restart\n\r", 65, BLOCKING);
+    UART_Send(LPC_UART1,(uint8_t*)"  - Antes de iniciar cada partida vas a poder elejir la dificultad del juego con nuestro selector de velocidad\n\r", 113, BLOCKING);
+    UART_Send(LPC_UART1,(uint8_t*)"  - Las reglas son bien simples: usá los botones de movimiento para comer todas las manzanas posibles sin chocarte con las paredes o tu propia cola\n\r", 151, BLOCKING);
+    UART_Send(LPC_UART1,(uint8_t*)"  - Cuando pierdas (no te preocupes, en algún momento todos inevitablemente perdemos) te vamos a pasar algunas estadisticas y reproducir un sonido\n\r", 150, BLOCKING);
+    UART_Send(LPC_UART1,(uint8_t*)"  - Pero eso no es todo! Queres seguir jugando? Simplemente presioná el botn de Start/Restart y probá tus habilidades de vuelta!!\n\r", 136, BLOCKING);
 }
 
 //Chequea y envía los leds a encender a la matriz
