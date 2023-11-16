@@ -81,8 +81,8 @@ int main() {
 	for(uint8_t index = 0; index<NUM_SINE_SAMPLE; index++){
 		sinSamples[index] = sinSamples[index]<<6;
     }
-    
-    
+
+
     configUART();
     helloWorld();
 	configButtons();
@@ -364,7 +364,7 @@ void getRandomPair(uint8_t* a, uint8_t* b){
 void sendStats(){
     static uint8_t	gameCounter = 0;    //Contador de partidas
     gameCounter++;
-	uint8_t numbers[4]; //Buffer para el array de digitos
+	uint8_t numbers[4]="\0\0\0\0"; //Buffer para el array de digitos
 
     uint8_t data0[] = "\n\rChan chan chan...Se terminó el juego mi loco! Acá van un par de estadisticas:\n\r";
     UART_Send(LPC_UART1,data0, sizeof(data0), BLOCKING);
@@ -399,7 +399,7 @@ void helloWorld(){
     UART_Send(LPC_UART1,(uint8_t*)"  - Antes de iniciar cada partida vas a poder elejir la dificultad del juego con nuestro selector de velocidad\n\r", 113, BLOCKING);
     UART_Send(LPC_UART1,(uint8_t*)"  - Las reglas son bien simples: usá los botones de movimiento para comer todas las manzanas posibles sin chocarte con las paredes o tu propia cola\n\r", 151, BLOCKING);
     UART_Send(LPC_UART1,(uint8_t*)"  - Cuando pierdas (no te preocupes, en algún momento todos inevitablemente perdemos) te vamos a pasar algunas estadisticas y reproducir un sonido\n\r", 150, BLOCKING);
-    UART_Send(LPC_UART1,(uint8_t*)"  - Pero eso no es todo! Queres seguir jugando? Simplemente presioná el botn de Start/Restart y probá tus habilidades de vuelta!!\n\r", 136, BLOCKING);
+    UART_Send(LPC_UART1,(uint8_t*)"  - Pero eso no es todo! Queres seguir jugando? Simplemente presioná el boton de Start/Restart y probá tus habilidades de vuelta!!\n\r", 136, BLOCKING);
 }
 
 //Chequea y envía los leds a encender a la matriz
@@ -536,8 +536,4 @@ void ADC_IRQHandler(){
     LPC_ADC->ADGDR &= LPC_ADC->ADGDR;
 }
 
-void TIMER1_IRQHandler(){
-    NVIC_EnableIRQ(ADC_IRQn);
-	ADC_StartCmd(LPC_ADC, ADC_START_NOW);
-	TIM_ClearIntPending(LPC_TIM1,TIM_MR0_INT);
-}
+
