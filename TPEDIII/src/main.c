@@ -43,7 +43,7 @@ Direction direction;        // Direccion actual en la que se mueve la vibora
 uint8_t appleCounter = 0;   // Cantidad de manzanas ya comidas
 uint16_t secondsCounter;    // Duración de la partida en segundos
 Difficulty difficulty;      // Dificultad actual de la partida
-Bool start = FALSE;
+Bool start = FALSE;         // Bandera de comienzo de la partida inicial
 
 void configButtons();        // Interrupciones Externas
 void configTimer0();         // Tick para mover la vibora
@@ -52,7 +52,7 @@ void configDAC();            //
 void configDMA_DAC_Channel();//
 void configGPIO();           // Matriz Led
 void configUART();           // Envio de estadisticas
-void configSysTick();        // Obtención de seeds para generar random
+void configSysTick();        // Obtención de seeds para generar numeros aleatorios
 
 uint8_t checkCollisions(Point newPos);
 void updateDirection(Direction new, Direction avoid);
@@ -65,6 +65,7 @@ void initGame();
 void stopGame();
 void getRandomPair(uint8_t* a, uint8_t* b);
 uint8_t uint16_to_uint8Array(uint16_t value, uint8_t *result);
+void ASCIItoDirection(uint8_t value);
 
 void delay(uint32_t times) {
 	for(uint32_t i=0; i<times; i++)
@@ -84,14 +85,13 @@ int main() {
 		sinSamples[index] = sinSamples[index]<<6;
     }
 
-
     configUART();
     helloWorld();
 	configButtons();
     configGPIO();
     configADC();
     while(!start){  //Espero que el boton de start levante la flag antes de continuar con el juego
-        delay(200);
+        delay(300);
     }
 
     while (1) {     //Una vez configurado e iniciado el juego, renderizo las posiciones de la vibora y la manzana
@@ -106,7 +106,6 @@ int main() {
 //              CONFIGURACIONES
 //***********************************************
 
-//Timer encargado del tick de movimiento de la vibora
 void configTimer0(){
 	TIM_MATCHCFG_Type MatchConfig;
 	MatchConfig.MatchChannel = 0;
@@ -127,7 +126,6 @@ void configTimer0(){
 }
 
 void configButtons(){
-
 	//Se habilita resistencias de pull down en los pines P0.0 a P0.3
 	// P0.0----->ARRIBA
 	// P0.1----->DERECHA
@@ -149,7 +147,6 @@ void configButtons(){
     // Se limpian banderas de interrupción
 	LPC_GPIOINT->IO0IntClr |=0x0000000F;
 	LPC_GPIOINT->IO0IntClr |=(1<<22);
-
 
 	NVIC_EnableIRQ(EINT3_IRQn);
 }
@@ -191,11 +188,16 @@ void configUART(){
 	UART_FIFOConfigStructInit(&UARTFIFOConfigStruct);
 	UART_FIFOConfig(LPC_UART1, &UARTFIFOConfigStruct);
 
+    // Habilita interrupci�n por el RX del UART
+	UART_IntConfig(LPC_UART1, UART_INTCFG_RBR, ENABLE);
+	// Habilita interrupci�n por el estado de la linea UART
+	UART_IntConfig(LPC_UART1, UART_INTCFG_RLS, ENABLE);
+
 	UART_TxCmd(LPC_UART1, ENABLE);  //Habilitamos la transmisión
+    NVIC_EnableIRQ(UART1_IRQn);
 }
 
 void configDAC(){
-
 	//Configuración de P0.26 como salida analógica del DAC
 	PINSEL_CFG_Type pinCfg;
 	pinCfg.Funcnum = 2;
@@ -218,7 +220,6 @@ void configDAC(){
 }
 
 void configDMA_DAC_Channel(){
-
 	/*---------Configuración linked list--------*/
 	//source width 32 bits
 	//destination width 32 bits
@@ -229,7 +230,6 @@ void configDMA_DAC_Channel(){
 	LLI1.DstAddr = (uint32_t) &LPC_DAC->DACR;
 	LLI1.NextLLI = (uint32_t) &LLI1;
 	LLI1.Control = SAMPLES_AMOUNT| (1<<19)  | (1<<22) | (1<<26);
-
 
 	GPDMA_Init();
 
@@ -246,7 +246,6 @@ void configDMA_DAC_Channel(){
 	GPDMACfg.DMALLI = (uint32_t)&LLI1;
 	GPDMA_Setup(&GPDMACfg);
 	GPDMA_ChannelCmd(0, ENABLE);
-
 }
 
 void configADC(){
@@ -282,7 +281,7 @@ void initGame(){
     apple.x=6;
     apple.y=4;
 
-    configTimer0();
+    configTimer0();                         //Timer encargado del tick de movimiento de la vibora
     ADC_StartCmd(LPC_ADC,ADC_START_NOW);    //Hace una unica conversión para obtener la velocidad de juego
     NVIC_EnableIRQ(ADC_IRQn);
     configSysTick();
@@ -402,24 +401,24 @@ void sendStats(){
         UART_Send(LPC_UART1,(uint8_t *)"DIFICIL",7,BLOCKING);
     }
     UART_Send(LPC_UART1,(uint8_t*)"\n\r	Duración de la partida en segundos: ",41, BLOCKING);
-    uint16_to_uint8Array(secondsCounter, numbers);
+    digitos=uint16_to_uint8Array(secondsCounter, numbers);
     UART_Send(LPC_UART1,(uint8_t *)numbers, digitos, BLOCKING);
 
     UART_Send(LPC_UART1,(uint8_t*)"\n\r	Manzanas comidas: ",22, BLOCKING);
-    uint16_to_uint8Array(appleCounter, numbers);
+    digitos=uint16_to_uint8Array(appleCounter, numbers);
     UART_Send(LPC_UART1,(uint8_t *)numbers, digitos, BLOCKING);
 
     UART_Send(LPC_UART1,(uint8_t *)"\n\r",2,BLOCKING);
 }
 
-//
+//Saludo inicial
 void helloWorld(){
     UART_Send(LPC_UART1,(uint8_t*)"Bueeeenas! Gracias por jugar nuestro juego, acá te paso un par de tips sobre como funciona todo:\n\r", 100, BLOCKING);
     UART_Send(LPC_UART1,(uint8_t*)"  - Para iniciar la partida apretá el botón de Start/Restart\n\r", 65, BLOCKING);
     UART_Send(LPC_UART1,(uint8_t*)"  - Antes de iniciar cada partida vas a poder elejir la dificultad del juego con nuestro selector de velocidad\n\r", 113, BLOCKING);
     UART_Send(LPC_UART1,(uint8_t*)"  - Las reglas son bien simples: usá los botones de movimiento para comer todas las manzanas posibles sin chocarte con las paredes o tu propia cola\n\r", 151, BLOCKING);
     UART_Send(LPC_UART1,(uint8_t*)"  - Cuando pierdas (no te preocupes, en algún momento todos inevitablemente perdemos) te vamos a pasar algunas estadisticas y reproducir un sonido\n\r", 150, BLOCKING);
-    UART_Send(LPC_UART1,(uint8_t*)"  - Pero eso no es todo! Queres seguir jugando? Simplemente presioná el boton de Start/Restart y probá tus habilidades de vuelta!!\n\r", 136, BLOCKING);
+    UART_Send(LPC_UART1,(uint8_t*)"  - Pero eso no es todo! Queres seguir jugando? Simplemente presioná el boton de Start/Restart y probá tus habilidades de vuelta!!\n\r", 133, BLOCKING);
 }
 
 //Chequea y envía los leds a encender a la matriz
@@ -461,7 +460,7 @@ uint8_t uint16_to_uint8Array(uint16_t value, uint8_t *result){
 // Buffer size based on the maximum number of digits in a uint16_t (5 digits)
     uint8_t buffer[5];
     // Initialize index
-    int8_t index = 0;
+    uint8_t index = 0;
 
     // Handle the case when the value is 0 separately
     if (value == 0) {
@@ -480,6 +479,18 @@ uint8_t uint16_to_uint8Array(uint16_t value, uint8_t *result){
     // Null-terminate the result
     result[index] = '\0';
     return index;
+}
+
+void ASCIItoDirection(uint8_t value){
+    if(value=='w'){
+        updateDirection(DER,IZQ);
+    } else if(value=='s'){
+        updateDirection(IZQ,DER);
+    } else if(value=='a'){
+        updateDirection(ABAJO,ARRIBA);
+    } else if(value=='d'){
+        updateDirection(ARRIBA,ABAJO);
+    }
 }
 
 //***********************************************
@@ -557,3 +568,11 @@ void ADC_IRQHandler(){
     LPC_ADC->ADGDR &= LPC_ADC->ADGDR;
 }
 
+void UART1_IRQHandler(void){
+    uint8_t data[1] = "", aux;
+
+	UART_Receive(LPC_UART1, data, sizeof(data), NONE_BLOCKING);
+		aux=data[0];
+		ASCIItoDirection(data[0]);
+
+}
