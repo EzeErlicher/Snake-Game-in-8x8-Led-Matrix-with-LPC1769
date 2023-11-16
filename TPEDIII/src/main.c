@@ -44,6 +44,7 @@ Direction direction;        // Direccion actual en la que se mueve la vibora
 uint8_t appleCounter = 0;   // Cantidad de manzanas ya comidas
 uint16_t secondsCounter;    // Duración de la partida en segundos
 Difficulty difficulty;      // Dificultad actual de la partida
+Bool start = FALSE;
 
 void configButtons();        // Interrupciones Externas
 void configTimers();         // Tick para mover la vibora
@@ -81,15 +82,17 @@ int main() {
 		sinSamples[index] = sinSamples[index]<<6;
     }
     
+    
     configUART();
+    helloWorld();
 	configButtons();
     configGPIO();
     configADC();
-    helloWorld();
-    initGame();
-    /*while (1) {}*/ //El juego no debería comenzar hasta que el jugador apriete uno de los pulsadores
+    while(!start){  //Espero que el boton de start levante la flag antes de continuar con el juego
+        delay(200);
+    }
 
-    while (1) {
+    while (1) {     //Una vez configurado e iniciado el juego, renderizo las posiciones de la vibora y la manzana
         render();
         delay(100); //SACAR CUENTAS
     }
@@ -499,8 +502,11 @@ void EINT3_IRQHandler(){
 		updateDirection(IZQ,DER);
 		LPC_GPIOINT->IO0IntClr |=(1<<3);
 	}
-    // BOTON DE RESTART
+    // BOTON DE START/RESTART
 	else{
+        if(!start){
+            start = TRUE;
+        }
         initGame();
 		LPC_GPIOINT->IO0IntClr |=(1<<22);
 	}
