@@ -418,7 +418,7 @@ void helloWorld(){
     UART_Send(LPC_UART1,(uint8_t*)"  - Antes de iniciar cada partida vas a poder elejir la dificultad del juego con nuestro selector de velocidad\n\r", 113, BLOCKING);
     UART_Send(LPC_UART1,(uint8_t*)"  - Las reglas son bien simples: usá los botones de movimiento para comer todas las manzanas posibles sin chocarte con las paredes o tu propia cola\n\r", 151, BLOCKING);
     UART_Send(LPC_UART1,(uint8_t*)"  - Cuando pierdas (no te preocupes, en algún momento todos inevitablemente perdemos) te vamos a pasar algunas estadisticas y reproducir un sonido\n\r", 150, BLOCKING);
-    UART_Send(LPC_UART1,(uint8_t*)"  - Pero eso no es todo! Queres seguir jugando? Simplemente presioná el boton de Start/Restart y probá tus habilidades de vuelta!!\n\r", 133, BLOCKING);
+    UART_Send(LPC_UART1,(uint8_t*)"  - Pero eso no es todo! Queres seguir jugando? Simplemente presioná el boton de Start/Restart y probá tus habilidades de vuelta!!\n\r", 134, BLOCKING);
 }
 
 //Chequea y envía los leds a encender a la matriz
