@@ -20,8 +20,7 @@
 #define TIMER_NORMAL 800
 #define TIMER_HARD   400
 
-#define samplesAmount 60
-#define NUM_SINE_SAMPLE 60
+#define SAMPLES_AMOUNT 60
 #define SINE_FREQ_IN_HZ 400
 #define PCLK_DAC_IN_MHZ 25
 
@@ -72,13 +71,19 @@ void delay(uint32_t times) {
 		for(uint32_t j=0; j<times; j++);
 }
 
-uint32_t sinSamples[NUM_SINE_SAMPLE] = {511, 564, 617, 669, 719, 767, 812, 853, 891, 925, 954, 978, 997, 1011, 1020, 1023,
-							   1020, 1011, 997, 978, 954, 925, 891, 853, 812, 767, 719, 669, 617, 564, 511, 458,
-							   405, 353, 303, 255, 210, 169, 131, 97, 68, 44, 25, 11, 2, 0, 2, 11, 25, 44, 68,
-							   97, 131, 169, 210, 255, 303, 353, 405, 458};
 
+
+uint32_t sinSamples[SAMPLES_AMOUNT] = {
+		511, 564, 617, 669, 719, 767, 812, 853, 891, 925, 954, 978, 997, 1011, 1020, 1023,
+		1020, 1011, 997, 978, 954, 925, 891, 853, 812, 767, 719, 669, 617, 564, 511, 458,
+		405, 353, 303, 255, 210, 169, 131, 97, 68, 44, 25, 11, 2, 0, 2, 11, 25, 44, 68,
+	    97, 131, 169, 210, 255, 303, 353, 405, 458};
+
+
+// se desplazan las muestras en 6 posiciones
+// VALUE en el registro DACR comprende los bits 15-6
 int main() {
-	for(uint8_t index = 0; index<NUM_SINE_SAMPLE; index++){
+	for(uint8_t index = 0; index<SAMPLES_AMOUNT; index++){
 		sinSamples[index] = sinSamples[index]<<6;
     }
 
@@ -124,24 +129,30 @@ void configTimers(){
 }
 
 void configButtons(){
+
+	//Se habilita resistencias de pull down en los pines P0.0 a P0.3
+	// P0.0----->ARRIBA
+	// P0.1----->DERECHA
+	// P0.2----->IZQUIERDA
+	// P0.3----->ABAJO
 	LPC_PINCON->PINMODE0|=(3<<0);
 	LPC_PINCON->PINMODE0|=(3<<2);
 	LPC_PINCON->PINMODE0|=(3<<4);
 	LPC_PINCON->PINMODE0|=(3<<6);
 
-	//LPC_PINCON->PINMODE4|=(3<<26);
+	// Se habilita resistencia de pull down en P0.22
+	// P0.22----->START/RESTART
 	LPC_PINCON->PINMODE1|=(3<<12);
 
-	// Enable rising edge interrupt for pin
+	// Se habilita interrupción por flanco de subida en todos los botones
 	LPC_GPIOINT->IO0IntEnR |=0x0000000F;
 	LPC_GPIOINT->IO0IntEnR |=(1<<22);
-	//LPC_GPIOINT->IO2IntEnR |=(1<<13);
 
+    // Se limpian banderas de interrupción
 	LPC_GPIOINT->IO0IntClr |=0x0000000F;
 	LPC_GPIOINT->IO0IntClr |=(1<<22);
-	//LPC_GPIOINT->IO2IntClr |=(1<<13);
 
-	// Enable EINT3 interrupt
+
 	NVIC_EnableIRQ(EINT3_IRQn);
 }
 
@@ -186,6 +197,8 @@ void configUART(){
 }
 
 void configDAC(){
+
+	//Configuración de P0.26 como salida analógica del DAC
 	PINSEL_CFG_Type pinCfg;
 	pinCfg.Funcnum = 2;
 	pinCfg.OpenDrain = 0;
@@ -198,28 +211,36 @@ void configDAC(){
 	dacCfg.CNT_ENA = SET;
 	dacCfg.DMA_ENA = SET;
 	DAC_Init(LPC_DAC);
-		/*Set timeout*/
+
+	// configuración tiempo de time out DAC
 	uint32_t tmp;
-	tmp = (PCLK_DAC_IN_MHZ * 1000000)/(SINE_FREQ_IN_HZ * NUM_SINE_SAMPLE);
+	tmp = (PCLK_DAC_IN_MHZ * 1000000)/(SINE_FREQ_IN_HZ * SAMPLES_AMOUNT);
 	DAC_SetDMATimeOut(LPC_DAC, tmp);
 	DAC_ConfigDAConverterControl(LPC_DAC, &dacCfg);
 }
 
 void configDMA_DAC_Channel(){
+
+	/*---------Configuración linked list--------*/
+	//source width 32 bits
+	//destination width 32 bits
+	//source adress se incrementa en cada transmisión
+	//destination adress (DAC) se mantiene fija
 	GPDMA_LLI_Type LLI1;
 	LLI1.SrcAddr = (uint32_t) sinSamples;
 	LLI1.DstAddr = (uint32_t) &LPC_DAC->DACR;
 	LLI1.NextLLI = (uint32_t) &LLI1;
-	LLI1.Control = samplesAmount | (1<<19)  | (1<<22) | (1<<26);
+	LLI1.Control = SAMPLES_AMOUNT| (1<<19)  | (1<<22) | (1<<26);
 
-	//source width 32 bits dest width 32 bits source increment
+
 	GPDMA_Init();
 
+	// configuracion y habilitacion del Canal 0 de DMA
 	GPDMA_Channel_CFG_Type GPDMACfg;
 	GPDMACfg.ChannelNum = 0;
 	GPDMACfg.SrcMemAddr = (uint32_t)sinSamples;
 	GPDMACfg.DstMemAddr = 0;
-	GPDMACfg.TransferSize = samplesAmount;
+	GPDMACfg.TransferSize = SAMPLES_AMOUNT;
 	GPDMACfg.TransferWidth = 0;
 	GPDMACfg.TransferType = GPDMA_TRANSFERTYPE_M2P;
 	GPDMACfg.SrcConn = 0;
@@ -535,5 +556,4 @@ void ADC_IRQHandler(){
 
     LPC_ADC->ADGDR &= LPC_ADC->ADGDR;
 }
-
 
