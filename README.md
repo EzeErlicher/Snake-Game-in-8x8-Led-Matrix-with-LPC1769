@@ -1,20 +1,20 @@
 # Snake Game
-The project consisted in building the traditional Snake game using the LPC1769 board (revB version) wich contains an ARM Cortex-M3 processor. The game, displayed on an 8x8 LED matrix, has the following features:
+This repository showcases the implementation of the classic Snake game on a LPC1769 board (revB version), which contains an ARM Cortex-M3 processor. The game is displayed on an 8x8 LED matrix and has the following features:
 
-● Speed regulator using a potentiometer and the ADC module 
+● Speed Regulation: Game speed is controled through a potentiometer and the ADC module.
 
-● Motion control using 4 physical buttons that generate GPIO interruptions or through the "WASD" characters using UART reception. 
+● Motion Control: Using either 4 physical buttons that trigger GPIO interruptions or through the "WASD" characters received via UART communication.
 
-● Game instructions are displayed when the board is turned on and statistics are sent at the end of each game through UART transmission. 
+● Statistics Transmission: Statistics are sent through UART transmission at the end of each gaming session
 
-● Reproduction of a tone through the DAC at the end of the game, which is carried out by transmitting memory data to the DAC using the DMA module.
+● Sound: Upon finishing a game session, a 400Hz tone is reproduced. The samples of a the sinusoidal wave stored in memory are transmitted to the DAC thanks to a DMA channel
 
 ● Start and reset button 
 
 List of components:
 
    - LPC1769 (revB version)
-   - 8x8 LED matrix model KYX-1088AB
+   - 8x8 LED matrix, model: KYX-1088AB
    - 8 resistors 430 Ὡ
    - 10KὩ potentiometer
    - 5 buttons
